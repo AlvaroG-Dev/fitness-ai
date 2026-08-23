@@ -22,12 +22,16 @@ class _WorkoutSessionPageState extends State<WorkoutSessionPage> {
   int phaseSeconds = 0;
   bool paused = false;
   bool resting = false;
+  String restLabel = 'DESCANSO';
   Timer? timer;
 
   WorkoutExercise get current => workout.exercises[exerciseIndex];
   bool get lastSet => setIndex + 1 >= current.sets;
   bool get lastExercise => exerciseIndex + 1 >= workout.exercises.length;
-  int get restRemaining => current.restSeconds - phaseSeconds;
+  bool get needsRestAfterSet => !lastSet && (setIndex + 1).isEven;
+  int get restDuration =>
+      lastSet ? current.exerciseRestSeconds : current.restSeconds;
+  int get restRemaining => restDuration - phaseSeconds;
 
   @override
   void initState() {
@@ -39,7 +43,7 @@ class _WorkoutSessionPageState extends State<WorkoutSessionPage> {
         elapsedSeconds++;
         if (resting) {
           phaseSeconds++;
-          if (phaseSeconds >= current.restSeconds) {
+          if (phaseSeconds >= restDuration) {
             resting = false;
             phaseSeconds = 0;
           }
@@ -60,15 +64,22 @@ class _WorkoutSessionPageState extends State<WorkoutSessionPage> {
       _finish();
       return;
     }
+
     setState(() {
       if (lastSet) {
         exerciseIndex++;
         setIndex = 0;
+        restLabel = 'RECUPERACIÓN';
+        resting = true;
+      } else if (needsRestAfterSet) {
+        setIndex++;
+        restLabel = 'DESCANSO';
+        resting = true;
       } else {
         setIndex++;
+        resting = false;
       }
       phaseSeconds = 0;
-      resting = true;
     });
   }
 
@@ -169,8 +180,8 @@ class _WorkoutSessionPageState extends State<WorkoutSessionPage> {
               const SizedBox(height: 8),
               Text(
                 resting
-                    ? 'Recupera. La siguiente serie empieza automáticamente.'
-                    : 'Concéntrate en la técnica y controla cada repetición.',
+                    ? '$restLabel. Prepárate para lo siguiente.'
+                    : 'Mantén una técnica controlada. No necesitas ir con prisa.',
                 textAlign: TextAlign.center,
                 style: const TextStyle(color: Colors.white60, fontSize: 15),
               ),
@@ -180,7 +191,7 @@ class _WorkoutSessionPageState extends State<WorkoutSessionPage> {
                 child: resting
                     ? _RestCard(
                         key: const ValueKey('rest'),
-                        remaining: restRemaining.clamp(0, current.restSeconds),
+                        remaining: restRemaining.clamp(0, restDuration),
                         onSkip: skipRest,
                         accent: accent,
                       )
@@ -212,7 +223,7 @@ class _WorkoutSessionPageState extends State<WorkoutSessionPage> {
               ),
               const SizedBox(height: 8),
               Text(
-                '${current.sets} series · ${current.reps} repeticiones · ${current.restSeconds}s descanso',
+                '${current.sets} series · ${current.reps} repeticiones · descanso cada 2 series',
                 style: const TextStyle(color: Colors.white38, fontSize: 12),
               ),
             ],
@@ -294,7 +305,7 @@ class _RestCard extends StatelessWidget {
         child: Column(
           children: [
             const Text(
-              'DESCANSO',
+              'RECUPERACIÓN',
               style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.5),
             ),
             const SizedBox(height: 6),
@@ -307,7 +318,7 @@ class _RestCard extends StatelessWidget {
             TextButton.icon(
               onPressed: onSkip,
               icon: const Icon(Icons.skip_next_rounded),
-              label: const Text('SALTAR DESCANSO'),
+              label: const Text('ESTOY LISTO'),
             ),
           ],
         ),
