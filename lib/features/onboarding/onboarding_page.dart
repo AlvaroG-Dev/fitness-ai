@@ -332,7 +332,10 @@ class _ChoiceStep<T> extends StatelessWidget {
 }
 
 class _EquipmentStep extends StatelessWidget {
-  const _EquipmentStep({required this.selected, required this.onChanged});
+  const _EquipmentStep({
+    required this.selected,
+    required this.onChanged,
+  });
 
   final Set<Equipment> selected;
   final ValueChanged<Equipment> onChanged;
@@ -505,7 +508,10 @@ class _GoalCard extends StatelessWidget {
 }
 
 class SummaryPage extends StatelessWidget {
-  const SummaryPage({super.key, required this.state});
+  const SummaryPage({
+    super.key,
+    required this.state,
+  });
 
   final OnboardingState state;
 
@@ -536,14 +542,20 @@ class SummaryPage extends StatelessWidget {
           children: [
             const Text(
               '¡Perfecto!',
-              style: TextStyle(fontSize: 34, fontWeight: FontWeight.w800),
+              style: TextStyle(
+                fontSize: 34,
+                fontWeight: FontWeight.w800,
+              ),
             ),
             const SizedBox(height: 8),
             const Text(
               'Ya tenemos lo necesario para preparar tu primer entrenamiento.',
             ),
             const SizedBox(height: 28),
-            _SummaryTile(title: 'Objetivos', value: state.goals.join(', ')),
+            _SummaryTile(
+              title: 'Objetivos',
+              value: state.goals.join(', '),
+            ),
             _SummaryTile(title: 'Nivel', value: _levelText()),
             _SummaryTile(title: 'Tiempo', value: _durationText()),
             _SummaryTile(
@@ -567,7 +579,10 @@ class SummaryPage extends StatelessWidget {
 }
 
 class _SummaryTile extends StatelessWidget {
-  const _SummaryTile({required this.title, required this.value});
+  const _SummaryTile({
+    required this.title,
+    required this.value,
+  });
 
   final String title;
   final String value;
