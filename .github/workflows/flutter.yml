@@ -61,9 +61,6 @@ jobs:
       - name: Format Dart sources
         run: dart format lib test
 
-      - name: Get dependencies
-        run: flutter pub get
-
       - name: Build APK
         run: flutter build apk --release
 
