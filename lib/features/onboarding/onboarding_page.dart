@@ -98,7 +98,10 @@ class _OnboardingPageState extends State<OnboardingPage> {
                   onPressed: _selectedGoals.isEmpty ? null : () {},
                   child: const Text(
                     'CONTINUAR',
-                    style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 0.8),
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.8,
+                    ),
                   ),
                 ),
               ),
@@ -133,7 +136,9 @@ class _GoalCard extends StatelessWidget {
         duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: selected ? accent.withValues(alpha: 0.16) : const Color(0xFF15181D),
+          color: selected
+              ? accent.withValues(alpha: 0.16)
+              : const Color(0xFF15181D),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: selected ? accent : Colors.white.withValues(alpha: 0.07),
@@ -144,8 +149,18 @@ class _GoalCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Icon(icon, size: 28, color: selected ? accent : Colors.white70),
-            Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+            Icon(
+              icon,
+              size: 28,
+              color: selected ? accent : Colors.white70,
+            ),
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ],
         ),
       ),
