@@ -18,15 +18,6 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
   WorkoutDuration? duration;
   int page = 0;
 
-  static const goalItems = [
-    ('arms', 'Brazos', Icons.fitness_center),
-    ('chest', 'Pecho', Icons.accessibility_new),
-    ('abs', 'Abdominales', Icons.grid_view_rounded),
-    ('legs', 'Piernas', Icons.directions_run),
-    ('back', 'Espalda', Icons.airline_seat_recline_normal),
-    ('full_body', 'Todo el cuerpo', Icons.person),
-  ];
-
   @override
   void dispose() {
     controller.dispose();
@@ -166,7 +157,9 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
                     height: 54,
                     child: FilledButton(
                       onPressed: ready ? next : null,
-                      child: Text(page == 3 ? 'GENERAR ENTRENAMIENTO' : 'CONTINUAR'),
+                      child: Text(
+                        page == 3 ? 'GENERAR ENTRENAMIENTO' : 'CONTINUAR',
+                      ),
                     ),
                   ),
                 ],
@@ -260,30 +253,45 @@ class _GoalsStep extends StatelessWidget {
       children: [
         const Text(
           '¿Qué quieres\nmejorar?',
-          style: TextStyle(fontSize: 38, height: 1.05, fontWeight: FontWeight.w900),
+          style: TextStyle(
+            fontSize: 38,
+            height: 1.05,
+            fontWeight: FontWeight.w900,
+          ),
         ),
         const SizedBox(height: 10),
         Text(
           'Elige una o varias zonas.',
-          style: TextStyle(color: Colors.white.withValues(alpha: 0.62), fontSize: 16),
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.62),
+            fontSize: 16,
+          ),
         ),
         const SizedBox(height: 22),
-        ...items.map((item) => Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: _Tile(
-            title: item.$2,
-            icon: item.$3,
-            selected: selected.contains(item.$1),
-            onTap: () => onTap(item.$1),
+        ...items.map(
+          (item) => Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: _Tile(
+              title: item.$2,
+              icon: item.$3,
+              selected: selected.contains(item.$1),
+              onTap: () => onTap(item.$1),
+            ),
           ),
-        )),
+        ),
       ],
     );
   }
 }
 
 class _SingleChoiceStep<T> extends StatelessWidget {
-  const _SingleChoiceStep({required this.title, required this.subtitle, required this.values, required this.selected, required this.onTap});
+  const _SingleChoiceStep({
+    required this.title,
+    required this.subtitle,
+    required this.values,
+    required this.selected,
+    required this.onTap,
+  });
 
   final String title;
   final String subtitle;
@@ -296,19 +304,30 @@ class _SingleChoiceStep<T> extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
       children: [
-        Text(title, style: const TextStyle(fontSize: 36, fontWeight: FontWeight.w900)),
+        Text(
+          title,
+          style: const TextStyle(fontSize: 36, fontWeight: FontWeight.w900),
+        ),
         const SizedBox(height: 10),
-        Text(subtitle, style: TextStyle(color: Colors.white.withValues(alpha: 0.62), fontSize: 16)),
-        const SizedBox(height: 24),
-        ...values.map((item) => Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: _Tile(
-            title: item.$2,
-            subtitle: item.$3,
-            selected: selected == item.$1,
-            onTap: () => onTap(item.$1),
+        Text(
+          subtitle,
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.62),
+            fontSize: 16,
           ),
-        )),
+        ),
+        const SizedBox(height: 24),
+        ...values.map(
+          (item) => Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: _Tile(
+              title: item.$2,
+              subtitle: item.$3,
+              selected: selected == item.$1,
+              onTap: () => onTap(item.$1),
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -332,26 +351,43 @@ class _EquipmentStep extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
       children: [
-        const Text('¿Qué tienes disponible?', style: TextStyle(fontSize: 36, fontWeight: FontWeight.w900)),
+        const Text(
+          '¿Qué tienes disponible?',
+          style: TextStyle(fontSize: 36, fontWeight: FontWeight.w900),
+        ),
         const SizedBox(height: 10),
-        Text('Puedes seleccionar varias opciones.', style: TextStyle(color: Colors.white.withValues(alpha: 0.62), fontSize: 16)),
-        const SizedBox(height: 24),
-        ...items.map((item) => Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: _Tile(
-            title: item.$2,
-            subtitle: item.$3,
-            selected: selected.contains(item.$1),
-            onTap: () => onTap(item.$1),
+        Text(
+          'Puedes seleccionar varias opciones.',
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.62),
+            fontSize: 16,
           ),
-        )),
+        ),
+        const SizedBox(height: 24),
+        ...items.map(
+          (item) => Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: _Tile(
+              title: item.$2,
+              subtitle: item.$3,
+              selected: selected.contains(item.$1),
+              onTap: () => onTap(item.$1),
+            ),
+          ),
+        ),
       ],
     );
   }
 }
 
 class _Tile extends StatelessWidget {
-  const _Tile({required this.title, required this.selected, required this.onTap, this.subtitle, this.icon});
+  const _Tile({
+    required this.title,
+    required this.selected,
+    required this.onTap,
+    this.subtitle,
+    this.icon,
+  });
 
   final String title;
   final String? subtitle;
@@ -369,26 +405,52 @@ class _Tile extends StatelessWidget {
         duration: const Duration(milliseconds: 160),
         padding: const EdgeInsets.all(17),
         decoration: BoxDecoration(
-          color: selected ? accent.withValues(alpha: 0.14) : const Color(0xFF15181D),
+          color: selected
+              ? accent.withValues(alpha: 0.14)
+              : const Color(0xFF15181D),
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: selected ? accent : Colors.white10, width: selected ? 1.5 : 1),
+          border: Border.all(
+            color: selected ? accent : Colors.white10,
+            width: selected ? 1.5 : 1,
+          ),
         ),
         child: Row(
           children: [
-            if (icon != null) ...[Icon(icon, color: selected ? accent : Colors.white70, size: 28), const SizedBox(width: 14)],
+            if (icon != null) ...[
+              Icon(
+                icon,
+                color: selected ? accent : Colors.white70,
+                size: 28,
+              ),
+              const SizedBox(width: 14),
+            ],
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
                   if (subtitle != null) ...[
                     const SizedBox(height: 3),
-                    Text(subtitle!, style: TextStyle(color: Colors.white.withValues(alpha: 0.56))),
+                    Text(
+                      subtitle!,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.56),
+                      ),
+                    ),
                   ],
                 ],
               ),
             ),
-            Icon(selected ? Icons.check_circle : Icons.circle_outlined, color: selected ? accent : Colors.white38),
+            Icon(
+              selected ? Icons.check_circle : Icons.circle_outlined,
+              color: selected ? accent : Colors.white38,
+            ),
           ],
         ),
       ),
