@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../workout/workout_page.dart';
+import '../home/home_shell.dart';
 import 'onboarding_state.dart';
 
 class OnboardingFlow extends StatefulWidget {
@@ -41,7 +41,7 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
         equipment: Set.from(equipment),
       );
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => WorkoutPage(profile: profile)),
+        MaterialPageRoute(builder: (_) => HomeShell(profile: profile)),
       );
       return;
     }
@@ -158,7 +158,7 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
                     child: FilledButton(
                       onPressed: ready ? next : null,
                       child: Text(
-                        page == 3 ? 'GENERAR ENTRENAMIENTO' : 'CONTINUAR',
+                        page == 3 ? 'CREAR MI PLAN' : 'CONTINUAR',
                       ),
                     ),
                   ),
