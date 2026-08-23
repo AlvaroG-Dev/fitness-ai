@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 
 import '../onboarding/onboarding_state.dart';
 import '../workout/workout_generator.dart';
+import '../workout/workout_page.dart';
+import '../workout/workout_session_page.dart';
 
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key, required this.profile});
-
   final OnboardingState profile;
-
   @override
   State<HomeShell> createState() => _HomeShellState();
 }
@@ -15,15 +15,18 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> {
   int index = 0;
 
+  void startWorkout() {
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => WorkoutSessionPage(profile: widget.profile)));
+  }
+
   @override
   Widget build(BuildContext context) {
     final pages = [
-      _HomeTab(profile: widget.profile, onStart: () => setState(() => index = 1)),
-      _TrainTab(profile: widget.profile),
+      _HomeTab(profile: widget.profile, onStart: startWorkout),
+      _TrainTab(profile: widget.profile, onStart: startWorkout),
       const _ProgressTab(),
       _ProfileTab(profile: widget.profile),
     ];
-
     return Scaffold(
       body: IndexedStack(index: index, children: pages),
       bottomNavigationBar: NavigationBar(
@@ -44,64 +47,41 @@ class _HomeTab extends StatelessWidget {
   const _HomeTab({required this.profile, required this.onStart});
   final OnboardingState profile;
   final VoidCallback onStart;
-
   @override
   Widget build(BuildContext context) {
     final workout = const WorkoutGenerator().generate(profile);
-    return SafeArea(
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
-        children: [
-          const _TopBar(title: 'FITNESS AI'),
-          const SizedBox(height: 26),
-          const Text('Buenos días 👋', style: TextStyle(fontSize: 16, color: Colors.white60)),
-          const SizedBox(height: 4),
-          const Text('¿Listo para entrenar?', style: TextStyle(fontSize: 30, fontWeight: FontWeight.w900)),
-          const SizedBox(height: 22),
-          _TodayCard(workout: workout, onStart: onStart),
-          const SizedBox(height: 26),
-          const _SectionTitle(title: 'Tu progreso'),
-          const SizedBox(height: 12),
-          const Row(children: [Expanded(child: _StatCard(value: '0', label: 'sesiones')), SizedBox(width: 10), Expanded(child: _StatCard(value: '0 min', label: 'entrenados')), SizedBox(width: 10), Expanded(child: _StatCard(value: '0', label: 'racha'))]),
-          const SizedBox(height: 26),
-          const _SectionTitle(title: 'Para ti'),
-          const SizedBox(height: 12),
-          const _InfoCard(icon: Icons.auto_awesome_rounded, title: 'Entrenamiento adaptativo', text: 'Tu plan se ajustará según tus objetivos y evolución.'),
-        ],
-      ),
-    );
+    return SafeArea(child: ListView(padding: const EdgeInsets.fromLTRB(20, 18, 20, 24), children: [
+      const _TopBar(title: 'FITNESS AI'), const SizedBox(height: 26),
+      const Text('Buenos días 👋', style: TextStyle(fontSize: 16, color: Colors.white60)), const SizedBox(height: 4),
+      const Text('¿Listo para entrenar?', style: TextStyle(fontSize: 30, fontWeight: FontWeight.w900)), const SizedBox(height: 22),
+      _TodayCard(workout: workout, onStart: onStart), const SizedBox(height: 26), const _SectionTitle(title: 'Tu progreso'), const SizedBox(height: 12),
+      const Row(children: [Expanded(child: _StatCard(value: '0', label: 'sesiones')), SizedBox(width: 10), Expanded(child: _StatCard(value: '0 min', label: 'entrenados')), SizedBox(width: 10), Expanded(child: _StatCard(value: '0', label: 'racha'))]),
+      const SizedBox(height: 26), const _SectionTitle(title: 'Para ti'), const SizedBox(height: 12), const _InfoCard(icon: Icons.auto_awesome_rounded, title: 'Entrenamiento adaptativo', text: 'Tu plan se ajustará según tus objetivos y evolución.'),
+    ]));
   }
 }
 
 class _TodayCard extends StatelessWidget {
   const _TodayCard({required this.workout, required this.onStart});
-  final dynamic workout;
+  final GeneratedWorkout workout;
   final VoidCallback onStart;
-
   @override
   Widget build(BuildContext context) {
     final accent = Theme.of(context).colorScheme.primary;
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(color: const Color(0xFF15181D), borderRadius: BorderRadius.circular(24), border: Border.all(color: accent.withValues(alpha: .45))),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), decoration: BoxDecoration(color: accent.withValues(alpha: .14), borderRadius: BorderRadius.circular(10)), child: Text('PARA HOY', style: TextStyle(color: accent, fontSize: 11, fontWeight: FontWeight.w900)),), const Spacer(), const Icon(Icons.auto_awesome_rounded, color: Colors.white54)]),
-        const SizedBox(height: 18),
-        Text(workout.title as String, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900)),
-        const SizedBox(height: 6),
-        Text('${workout.exercises.length} ejercicios · adaptado a ti', style: const TextStyle(color: Colors.white60)),
-        const SizedBox(height: 18),
-        SizedBox(width: double.infinity, height: 52, child: FilledButton.icon(onPressed: onStart, icon: const Icon(Icons.play_arrow_rounded), label: const Text('EMPEZAR'))),
-      ]),
-    );
+    return Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: const Color(0xFF15181D), borderRadius: BorderRadius.circular(24), border: Border.all(color: accent.withValues(alpha: .45))), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), decoration: BoxDecoration(color: accent.withValues(alpha: .14), borderRadius: BorderRadius.circular(10)), child: Text('PARA HOY', style: TextStyle(color: accent, fontSize: 11, fontWeight: FontWeight.w900))), const Spacer(), const Icon(Icons.auto_awesome_rounded, color: Colors.white54)]),
+      const SizedBox(height: 18), Text(workout.title, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900)), const SizedBox(height: 6), Text('${workout.exercises.length} ejercicios · adaptado a ti', style: const TextStyle(color: Colors.white60)), const SizedBox(height: 18),
+      SizedBox(width: double.infinity, height: 52, child: FilledButton.icon(onPressed: onStart, icon: const Icon(Icons.play_arrow_rounded), label: const Text('EMPEZAR'))),
+    ]));
   }
 }
 
 class _TrainTab extends StatelessWidget {
-  const _TrainTab({required this.profile});
+  const _TrainTab({required this.profile, required this.onStart});
   final OnboardingState profile;
+  final VoidCallback onStart;
   @override
-  Widget build(BuildContext context) => SafeArea(child: ListView(padding: const EdgeInsets.all(20), children: [const _TopBar(title: 'ENTRENAR'), const SizedBox(height: 26), const Text('Elige cómo quieres entrenar', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900)), const SizedBox(height: 18), _InfoCard(icon: Icons.auto_awesome_rounded, title: 'Entrenamiento para ti', text: 'Generado según tu perfil actual.'), const SizedBox(height: 12), const _InfoCard(icon: Icons.timer_outlined, title: 'Sesiones rápidas', text: 'Entrenamientos para cuando tienes poco tiempo.'), const SizedBox(height: 12), const _InfoCard(icon: Icons.grid_view_rounded, title: 'Por zona muscular', text: 'Brazos, pecho, abdominales, piernas, espalda o cuerpo completo.') ]));
+  Widget build(BuildContext context) => SafeArea(child: ListView(padding: const EdgeInsets.all(20), children: [const _TopBar(title: 'ENTRENAR'), const SizedBox(height: 26), const Text('Elige cómo quieres entrenar', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900)), const SizedBox(height: 18), InkWell(onTap: onStart, borderRadius: BorderRadius.circular(18), child: const _InfoCard(icon: Icons.auto_awesome_rounded, title: 'Entrenamiento para ti', text: 'Generado según tu perfil actual. Toca para empezar.')), const SizedBox(height: 12), const _InfoCard(icon: Icons.timer_outlined, title: 'Sesiones rápidas', text: 'Entrenamientos para cuando tienes poco tiempo.'), const SizedBox(height: 12), const _InfoCard(icon: Icons.grid_view_rounded, title: 'Por zona muscular', text: 'Brazos, pecho, abdominales, piernas, espalda o cuerpo completo.'), const SizedBox(height: 12), SizedBox(width: double.infinity, height: 52, child: OutlinedButton.icon(onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => WorkoutPage(profile: profile))), icon: const Icon(Icons.list_alt_rounded), label: const Text('VER ENTRENAMIENTO'))]));
 }
 
 class _ProgressTab extends StatelessWidget {
