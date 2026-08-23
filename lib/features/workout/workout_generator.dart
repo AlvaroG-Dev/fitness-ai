@@ -3,7 +3,12 @@ import '../../fitness_engine/models/exercise.dart';
 import '../onboarding/onboarding_state.dart' as onboarding;
 
 class WorkoutExercise {
-  const WorkoutExercise({required this.exercise, required this.sets, required this.reps, required this.restSeconds});
+  const WorkoutExercise({
+    required this.exercise,
+    required this.sets,
+    required this.reps,
+    required this.restSeconds,
+  });
 
   final Exercise exercise;
   final int sets;
@@ -32,11 +37,20 @@ class WorkoutGenerator {
     };
 
     final allowedEquipment = <Equipment>{Equipment.none};
-    if (profile.equipment.contains(onboarding.Equipment.backpack)) allowedEquipment.add(Equipment.backpack);
-    if (profile.equipment.contains(onboarding.Equipment.bands)) allowedEquipment.add(Equipment.resistanceBand);
-    if (profile.equipment.contains(onboarding.Equipment.dumbbells)) allowedEquipment.add(Equipment.dumbbells);
+    if (profile.equipment.contains(onboarding.Equipment.backpack)) {
+      allowedEquipment.add(Equipment.backpack);
+    }
+    if (profile.equipment.contains(onboarding.Equipment.bands)) {
+      allowedEquipment.add(Equipment.resistanceBand);
+    }
+    if (profile.equipment.contains(onboarding.Equipment.dumbbells)) {
+      allowedEquipment.add(Equipment.dumbbells);
+    }
 
-    final available = exerciseCatalog.where((exercise) => exercise.equipment.every(allowedEquipment.contains));
+    final available = exerciseCatalog.where(
+      (exercise) => exercise.equipment.every(allowedEquipment.contains),
+    );
+
     final targetMuscles = <MuscleGroup>{};
     for (final goal in profile.goals) {
       final muscle = switch (goal) {
@@ -48,9 +62,13 @@ class WorkoutGenerator {
         'full_body' => null,
         _ => null,
       };
-      if (muscle != null) targetMuscles.add(muscle);
+      if (muscle != null) {
+        targetMuscles.add(muscle);
+      }
     }
-    if (profile.goals.contains('full_body')) targetMuscles.addAll(MuscleGroup.values);
+    if (profile.goals.contains('full_body')) {
+      targetMuscles.addAll(MuscleGroup.values);
+    }
 
     final userLevel = switch (profile.level) {
       onboarding.FitnessLevel.beginner => 1,
@@ -59,18 +77,36 @@ class WorkoutGenerator {
       null => 2,
     };
 
-    final candidates = available.where((exercise) => targetMuscles.isEmpty || exercise.muscles.any(targetMuscles.contains)).toList()
-      ..sort((a, b) => (a.level - userLevel).abs().compareTo((b.level - userLevel).abs()));
+    final candidates = available
+        .where(
+          (exercise) =>
+              targetMuscles.isEmpty ||
+              exercise.muscles.any(targetMuscles.contains),
+        )
+        .toList()
+      ..sort(
+        (a, b) => (a.level - userLevel)
+            .abs()
+            .compareTo((b.level - userLevel).abs()),
+      );
 
     final selected = <Exercise>[];
     final patterns = <MovementPattern>{};
     for (final exercise in candidates) {
-      if (patterns.add(exercise.pattern)) selected.add(exercise);
-      if (selected.length == targetCount) break;
+      if (patterns.add(exercise.pattern)) {
+        selected.add(exercise);
+      }
+      if (selected.length == targetCount) {
+        break;
+      }
     }
     for (final exercise in candidates) {
-      if (selected.length == targetCount) break;
-      if (!selected.contains(exercise)) selected.add(exercise);
+      if (selected.length == targetCount) {
+        break;
+      }
+      if (!selected.contains(exercise)) {
+        selected.add(exercise);
+      }
     }
 
     final sets = switch (profile.level) {
@@ -81,12 +117,16 @@ class WorkoutGenerator {
 
     return GeneratedWorkout(
       title: 'Entrenamiento de hoy',
-      exercises: selected.map((exercise) => WorkoutExercise(
-        exercise: exercise,
-        sets: sets,
-        reps: exercise.pattern == MovementPattern.core ? 30 : 10,
-        restSeconds: 45,
-      )).toList(),
+      exercises: selected
+          .map(
+            (exercise) => WorkoutExercise(
+              exercise: exercise,
+              sets: sets,
+              reps: exercise.pattern == MovementPattern.core ? 30 : 10,
+              restSeconds: 45,
+            ),
+          )
+          .toList(),
     );
   }
 }
