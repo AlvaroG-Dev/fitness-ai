@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../features/onboarding/onboarding_page.dart';
+import '../features/onboarding/onboarding_flow.dart';
 
 class FitnessAiApp extends StatelessWidget {
   const FitnessAiApp({super.key});
@@ -25,7 +25,7 @@ class FitnessAiApp extends StatelessWidget {
         useMaterial3: true,
         fontFamily: 'sans',
       ),
-      home: const OnboardingPage(),
+      home: const OnboardingFlow(),
     );
   }
 }
