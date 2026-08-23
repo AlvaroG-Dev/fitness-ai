@@ -11,8 +11,14 @@ void main() {
     final ids = exerciseCatalog.map((exercise) => exercise.id).toSet();
 
     for (final exercise in exerciseCatalog) {
-      expect(exercise.regressionId == null || ids.contains(exercise.regressionId), isTrue);
-      expect(exercise.progressionId == null || ids.contains(exercise.progressionId), isTrue);
+      expect(
+        exercise.regressionId == null || ids.contains(exercise.regressionId),
+        isTrue,
+      );
+      expect(
+        exercise.progressionId == null || ids.contains(exercise.progressionId),
+        isTrue,
+      );
     }
   });
 }
