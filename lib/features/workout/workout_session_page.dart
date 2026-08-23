@@ -92,7 +92,6 @@ class _WorkoutCompletePageState extends State<WorkoutCompletePage>{
     Navigator.of(context).pop();
   }
   @override Widget build(BuildContext context){
-    final accent=Theme.of(context).colorScheme.primary;
     return Scaffold(body:SafeArea(child:ListView(padding:const EdgeInsets.fromLTRB(24,30,24,30),children:[
       const SizedBox(height:24),Center(child:Container(width:82,height:82,decoration:BoxDecoration(color:Color(0x2218D878),shape:BoxShape.circle),child:Icon(Icons.check_rounded,size:48))),const SizedBox(height:24),
       const Text('¡Entrenamiento completado!',textAlign:TextAlign.center,style:TextStyle(fontSize:30,fontWeight:FontWeight.w900)),const SizedBox(height:10),
