@@ -1,163 +1,263 @@
 import '../models/exercise.dart';
 
 const exerciseCatalog = <Exercise>[
-  Exercise(
-    id: 'wall_push_up',
-    name: 'Flexión contra pared',
-    muscles: {MuscleGroup.chest, MuscleGroup.arms},
-    pattern: MovementPattern.push,
-    level: 1,
-    regressionId: null,
-    progressionId: 'incline_push_up',
-  ),
+  // ============================================================
+  // PECHO / EMPUJE
+  // ============================================================
+
   Exercise(
     id: 'incline_push_up',
-    name: 'Flexión inclinada',
-    muscles: {MuscleGroup.chest, MuscleGroup.arms},
+    name: 'Flexiones inclinadas',
+    description:
+    'Una variante más accesible de las flexiones tradicionales.',
+    muscles: {
+      MuscleGroup.chest,
+      MuscleGroup.arms,
+    },
+    equipment: {
+      Equipment.none,
+    },
     pattern: MovementPattern.push,
-    level: 2,
-    regressionId: 'wall_push_up',
+    level: 1,
+    metric: ExerciseMetric.repetitions,
+    minRepetitions: 8,
+    maxRepetitions: 20,
+
+    // Progresión:
+    // incline push-up → push-up
     progressionId: 'push_up',
   ),
+
   Exercise(
     id: 'push_up',
-    name: 'Flexión',
-    muscles: {MuscleGroup.chest, MuscleGroup.arms},
+    name: 'Flexiones',
+    description:
+    'Mantén el cuerpo alineado y baja el pecho de forma controlada.',
+    muscles: {
+      MuscleGroup.chest,
+      MuscleGroup.arms,
+      MuscleGroup.shoulders,
+    },
+    equipment: {
+      Equipment.none,
+    },
     pattern: MovementPattern.push,
-    level: 3,
+    level: 2,
+    metric: ExerciseMetric.repetitions,
+    minRepetitions: 6,
+    maxRepetitions: 20,
+
+    // Regresión:
+    // push-up → incline push-up
     regressionId: 'incline_push_up',
-    progressionId: 'pause_push_up',
+
+    // Progresión:
+    // push-up → pike push-up
+    progressionId: 'pike_push_up',
   ),
+
   Exercise(
-    id: 'pause_push_up',
-    name: 'Flexión con pausa',
-    muscles: {MuscleGroup.chest, MuscleGroup.arms},
+    id: 'pike_push_up',
+    name: 'Flexiones pike',
+    description:
+    'Adopta una posición en V y realiza una flexión enfocando el trabajo en hombros.',
+    muscles: {
+      MuscleGroup.shoulders,
+      MuscleGroup.arms,
+    },
+    equipment: {
+      Equipment.none,
+    },
     pattern: MovementPattern.push,
     level: 4,
+    metric: ExerciseMetric.repetitions,
+    minRepetitions: 5,
+    maxRepetitions: 12,
+
+    // Regresión:
+    // pike push-up → push-up
     regressionId: 'push_up',
-    progressionId: 'decline_push_up',
   ),
-  Exercise(
-    id: 'decline_push_up',
-    name: 'Flexión declinada',
-    muscles: {MuscleGroup.chest, MuscleGroup.arms},
-    pattern: MovementPattern.push,
-    level: 5,
-    regressionId: 'pause_push_up',
-  ),
+
+  // ============================================================
+  // PIERNAS
+  // ============================================================
+
   Exercise(
     id: 'bodyweight_squat',
-    name: 'Sentadilla',
-    muscles: {MuscleGroup.legs},
+    name: 'Sentadillas',
+    description:
+    'Baja de forma controlada manteniendo las rodillas alineadas.',
+    muscles: {
+      MuscleGroup.legs,
+      MuscleGroup.glutes,
+    },
+    equipment: {
+      Equipment.none,
+    },
     pattern: MovementPattern.squat,
     level: 1,
-    progressionId: 'pause_squat',
+    metric: ExerciseMetric.repetitions,
+    minRepetitions: 8,
+    maxRepetitions: 25,
   ),
-  Exercise(
-    id: 'pause_squat',
-    name: 'Sentadilla con pausa',
-    muscles: {MuscleGroup.legs},
-    pattern: MovementPattern.squat,
-    level: 2,
-    regressionId: 'bodyweight_squat',
-    progressionId: 'reverse_lunge',
-  ),
+
   Exercise(
     id: 'reverse_lunge',
-    name: 'Zancada atrás',
-    muscles: {MuscleGroup.legs},
+    name: 'Zancadas atrás',
+    description:
+    'Da un paso atrás y controla la bajada antes de volver.',
+    muscles: {
+      MuscleGroup.legs,
+      MuscleGroup.glutes,
+    },
+    equipment: {
+      Equipment.none,
+    },
     pattern: MovementPattern.lunge,
-    level: 3,
-    regressionId: 'bodyweight_squat',
-    progressionId: 'bulgarian_split_squat',
+    level: 2,
+    metric: ExerciseMetric.repetitions,
+    minRepetitions: 6,
+    maxRepetitions: 16,
   ),
-  Exercise(
-    id: 'bulgarian_split_squat',
-    name: 'Sentadilla búlgara',
-    muscles: {MuscleGroup.legs},
-    pattern: MovementPattern.lunge,
-    level: 4,
-    regressionId: 'reverse_lunge',
-  ),
+
   Exercise(
     id: 'glute_bridge',
     name: 'Puente de glúteos',
-    muscles: {MuscleGroup.legs},
+    description:
+    'Eleva la cadera apretando los glúteos en la parte superior.',
+    muscles: {
+      MuscleGroup.glutes,
+      MuscleGroup.legs,
+    },
+    equipment: {
+      Equipment.none,
+    },
     pattern: MovementPattern.hinge,
     level: 1,
-    progressionId: 'single_leg_glute_bridge',
+    metric: ExerciseMetric.repetitions,
+    minRepetitions: 8,
+    maxRepetitions: 20,
   ),
-  Exercise(
-    id: 'single_leg_glute_bridge',
-    name: 'Puente de glúteo unilateral',
-    muscles: {MuscleGroup.legs},
-    pattern: MovementPattern.hinge,
-    level: 3,
-    regressionId: 'glute_bridge',
-  ),
+
+  // ============================================================
+  // CORE
+  // ============================================================
+
   Exercise(
     id: 'plank',
     name: 'Plancha',
-    muscles: {MuscleGroup.abs},
+    description:
+    'Mantén el cuerpo recto y el abdomen activo durante todo el ejercicio.',
+    muscles: {
+      MuscleGroup.abs,
+      MuscleGroup.shoulders,
+    },
+    equipment: {
+      Equipment.none,
+    },
     pattern: MovementPattern.core,
-    level: 1,
-    progressionId: 'side_plank',
+    level: 2,
+    metric: ExerciseMetric.seconds,
+    defaultSeconds: 30,
   ),
+
   Exercise(
     id: 'side_plank',
     name: 'Plancha lateral',
-    muscles: {MuscleGroup.abs},
+    description:
+    'Mantén la cadera elevada y el cuerpo alineado.',
+    muscles: {
+      MuscleGroup.abs,
+    },
+    equipment: {
+      Equipment.none,
+    },
     pattern: MovementPattern.core,
-    level: 2,
-    regressionId: 'plank',
-    progressionId: 'hollow_hold',
+    level: 3,
+    metric: ExerciseMetric.seconds,
+    defaultSeconds: 20,
   ),
+
   Exercise(
-    id: 'dead_bug',
-    name: 'Dead bug',
-    muscles: {MuscleGroup.abs},
-    pattern: MovementPattern.core,
+    id: 'mountain_climber',
+    name: 'Mountain climbers',
+    description:
+    'Lleva las rodillas hacia el pecho manteniendo un ritmo estable.',
+    muscles: {
+      MuscleGroup.abs,
+      MuscleGroup.legs,
+      MuscleGroup.shoulders,
+    },
+    equipment: {
+      Equipment.none,
+    },
+    pattern: MovementPattern.cardio,
     level: 2,
-    progressionId: 'hollow_hold',
+    metric: ExerciseMetric.seconds,
+    defaultSeconds: 30,
   ),
+
+  // ============================================================
+  // CARDIO
+  // ============================================================
+
   Exercise(
-    id: 'hollow_hold',
-    name: 'Hollow hold',
-    muscles: {MuscleGroup.abs},
-    pattern: MovementPattern.core,
-    level: 4,
-    regressionId: 'plank',
+    id: 'jumping_jacks',
+    name: 'Jumping jacks',
+    description:
+    'Realiza saltos controlados coordinando brazos y piernas.',
+    muscles: {
+      MuscleGroup.legs,
+      MuscleGroup.shoulders,
+    },
+    equipment: {
+      Equipment.none,
+    },
+    pattern: MovementPattern.cardio,
+    level: 1,
+    metric: ExerciseMetric.seconds,
+    defaultSeconds: 30,
   ),
+
+  Exercise(
+    id: 'high_knees',
+    name: 'Rodillas al pecho',
+    description:
+    'Corre en el sitio elevando las rodillas de forma dinámica.',
+    muscles: {
+      MuscleGroup.legs,
+      MuscleGroup.abs,
+    },
+    equipment: {
+      Equipment.none,
+    },
+    pattern: MovementPattern.cardio,
+    level: 2,
+    metric: ExerciseMetric.seconds,
+    defaultSeconds: 30,
+  ),
+
+  // ============================================================
+  // ESPALDA
+  // ============================================================
+
   Exercise(
     id: 'superman',
     name: 'Superman',
-    muscles: {MuscleGroup.back},
-    pattern: MovementPattern.pull,
-    level: 1,
-    progressionId: 'reverse_snow_angel',
-  ),
-  Exercise(
-    id: 'reverse_snow_angel',
-    name: 'Reverse snow angel',
-    muscles: {MuscleGroup.back},
+    description:
+    'Eleva brazos y piernas de forma controlada manteniendo el abdomen activo.',
+    muscles: {
+      MuscleGroup.back,
+      MuscleGroup.glutes,
+    },
+    equipment: {
+      Equipment.none,
+    },
     pattern: MovementPattern.pull,
     level: 2,
-    regressionId: 'superman',
-  ),
-  Exercise(
-    id: 'mountain_climber',
-    name: 'Mountain climber',
-    muscles: {MuscleGroup.abs, MuscleGroup.legs},
-    pattern: MovementPattern.cardio,
-    level: 2,
-    progressionId: 'burpee',
-  ),
-  Exercise(
-    id: 'burpee',
-    name: 'Burpee',
-    muscles: {MuscleGroup.arms, MuscleGroup.chest, MuscleGroup.legs},
-    pattern: MovementPattern.cardio,
-    level: 4,
-    regressionId: 'mountain_climber',
+    metric: ExerciseMetric.repetitions,
+    minRepetitions: 8,
+    maxRepetitions: 15,
   ),
 ];
