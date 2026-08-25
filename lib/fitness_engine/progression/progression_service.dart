@@ -18,21 +18,8 @@ class ExerciseProgress {
   final ProgressionAction action;
 }
 
-/// Convierte el resultado de una sesión en la carga recomendada
-/// para la siguiente sesión.
-///
-/// Flujo:
-///
-/// WorkoutResult
-///      ↓
-/// ProgressionService
-///      ↓
-/// ProgressionEngine
-///      ↓
-/// ExerciseProgress
-///
-/// El servicio no decide por sí mismo si progresar o regresar.
-/// Esa responsabilidad pertenece exclusivamente al ProgressionEngine.
+/// Convierte el historial de una sesión o de varias sesiones en la
+/// siguiente carga recomendada para un ejercicio.
 class ProgressionService {
   const ProgressionService({
     this.engine = const ProgressionEngine(),
@@ -40,44 +27,82 @@ class ProgressionService {
 
   final ProgressionEngine engine;
 
-  /// Calcula la siguiente carga para un ejercicio realizado.
+  /// Mantiene compatibilidad con el cálculo de una única sesión.
   ExerciseProgress? calculateNext(ExerciseResult result) {
-    final exercise = _findExercise(result.exerciseId);
+    return calculateAdaptiveNext([result]);
+  }
 
-    if (exercise == null) {
-      return null;
-    }
+  /// Calcula la siguiente carga usando resultados del ejercicio y de sus
+  /// variantes relacionados, ordenados del más reciente al más antiguo.
+  ///
+  /// Solo se considera la racha consecutiva que empieza en el resultado
+  /// más reciente. Un cambio de esfuerzo rompe la racha para no sobrerreaccionar.
+  ExerciseProgress? calculateAdaptiveNext(
+    Iterable<ExerciseResult> recentResults,
+  ) {
+    final results = recentResults.toList(growable: false);
+    if (results.isEmpty) return null;
 
-    final decision = engine.decide(
+    final latest = results.first;
+    final exercise = _findExercise(latest.exerciseId);
+    if (exercise == null) return null;
+
+    final streak = _consecutiveDifficulty(results);
+
+    final decision = engine.decideAdaptive(
       exercise: exercise,
-      currentValue: result.value,
-      difficulty: result.feedback,
+      currentValue: latest.value,
+      difficulty: latest.feedback,
+      consecutiveSessions: streak,
     );
 
     return ExerciseProgress(
       exerciseId: decision.exercise.id,
       currentValue: decision.value,
-      difficulty: result.feedback,
+      difficulty: latest.feedback,
       action: decision.action,
     );
   }
 
-  /// Calcula la progresión de todos los ejercicios realizados
-  /// durante una sesión.
   List<ExerciseProgress> calculateWorkoutProgress(
-      WorkoutResult workout,
-      ) {
+    WorkoutResult workout,
+  ) {
     final progress = <ExerciseProgress>[];
+    final seen = <String>{};
 
     for (final exerciseResult in workout.exercises) {
-      final next = calculateNext(exerciseResult);
+      if (!seen.add(exerciseResult.exerciseId)) continue;
 
+      final next = calculateNext(exerciseResult);
       if (next != null) {
         progress.add(next);
       }
     }
 
     return progress;
+  }
+
+  int _consecutiveDifficulty(List<ExerciseResult> results) {
+    if (results.isEmpty) return 0;
+
+    final firstBand = _effortBand(results.first.feedback);
+    var count = 0;
+
+    for (final result in results) {
+      if (_effortBand(result.feedback) != firstBand) break;
+      count++;
+      if (count >= 5) break;
+    }
+
+    return count;
+  }
+
+  int _effortBand(WorkoutDifficulty difficulty) {
+    return switch (difficulty) {
+      WorkoutDifficulty.veryEasy || WorkoutDifficulty.easy => 1,
+      WorkoutDifficulty.good => 2,
+      WorkoutDifficulty.hard || WorkoutDifficulty.veryHard => 3,
+    };
   }
 
   Exercise? _findExercise(String id) {
