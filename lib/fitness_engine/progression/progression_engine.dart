@@ -17,24 +17,14 @@ class ProgressionDecision {
 
   final ProgressionAction action;
   final Exercise exercise;
-
-  /// Repeticiones si el ejercicio es por reps.
-  /// Segundos si el ejercicio es por tiempo.
   final int value;
 }
 
-/// El Motor: reglas deterministas de progresión de carga.
+/// Motor determinista de progresión.
 ///
-/// Dada la dificultad percibida en la última sesión, decide si el
-/// usuario debe subir, mantener o bajar el estímulo del ejercicio,
-/// y si conviene cambiar de variante (más o menos exigente) dentro
-/// de la misma cadena de progresión/regresión.
-///
-/// Esto es intencionadamente "tonto": no interpreta tendencias ni
-/// historial, solo aplica una regla fija a partir del último dato.
-/// El análisis de tendencias a lo largo de varias sesiones vive en
-/// la capa de insights (fitness_engine/insights), que se apoya en
-/// este motor pero no lo sustituye.
+/// [decide] mantiene las reglas originales para una única sesión.
+/// [decideAdaptive] añade contexto de sesiones consecutivas para evitar
+/// reaccionar demasiado poco a una tendencia clara.
 class ProgressionEngine {
   const ProgressionEngine();
 
@@ -43,19 +33,55 @@ class ProgressionEngine {
     required int currentValue,
     required WorkoutDifficulty difficulty,
   }) {
+    return _decide(
+      exercise: exercise,
+      currentValue: currentValue,
+      difficulty: difficulty,
+      consecutiveSessions: 1,
+    );
+  }
+
+  ProgressionDecision decideAdaptive({
+    required Exercise exercise,
+    required int currentValue,
+    required WorkoutDifficulty difficulty,
+    int consecutiveSessions = 1,
+  }) {
+    return _decide(
+      exercise: exercise,
+      currentValue: currentValue,
+      difficulty: difficulty,
+      consecutiveSessions: consecutiveSessions.clamp(1, 5),
+    );
+  }
+
+  ProgressionDecision _decide({
+    required Exercise exercise,
+    required int currentValue,
+    required WorkoutDifficulty difficulty,
+    required int consecutiveSessions,
+  }) {
     switch (difficulty) {
       case WorkoutDifficulty.veryEasy:
+        final amount = exercise.isTimed ? 10 : 2;
+        final adaptiveAmount = consecutiveSessions >= 2
+            ? (amount * 1.5).round()
+            : amount;
         return _progress(
           exercise: exercise,
           currentValue: currentValue,
-          amount: exercise.isTimed ? 10 : 2,
+          amount: adaptiveAmount,
         );
 
       case WorkoutDifficulty.easy:
+        final amount = exercise.isTimed ? 5 : 1;
+        final adaptiveAmount = consecutiveSessions >= 2
+            ? amount * 2
+            : amount;
         return _progress(
           exercise: exercise,
           currentValue: currentValue,
-          amount: exercise.isTimed ? 5 : 1,
+          amount: adaptiveAmount,
         );
 
       case WorkoutDifficulty.good:
@@ -69,6 +95,7 @@ class ProgressionEngine {
         return _regressSlightly(
           exercise: exercise,
           currentValue: currentValue,
+          consecutiveSessions: consecutiveSessions,
         );
 
       case WorkoutDifficulty.veryHard:
@@ -117,13 +144,17 @@ class ProgressionEngine {
   ProgressionDecision _regressSlightly({
     required Exercise exercise,
     required int currentValue,
+    required int consecutiveSessions,
   }) {
     final minimum = exercise.isTimed ? 10 : exercise.minRepetitions;
-    final reduction = exercise.isTimed ? 5 : 2;
+    final baseReduction = exercise.isTimed ? 5 : 2;
+    final reduction = consecutiveSessions >= 3
+        ? (baseReduction * 1.5).round()
+        : baseReduction;
     final nextValue = currentValue - reduction;
 
     return ProgressionDecision(
-      action: ProgressionAction.maintain,
+      action: ProgressionAction.regress,
       exercise: exercise,
       value: nextValue < minimum ? minimum : nextValue,
     );
