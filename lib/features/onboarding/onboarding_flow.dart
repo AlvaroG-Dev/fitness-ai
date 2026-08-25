@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 
+import '../../fitness_engine/storage/progress_repository.dart';
 import '../home/home_shell.dart';
 import 'onboarding_state.dart';
 
 class OnboardingFlow extends StatefulWidget {
-  const OnboardingFlow({super.key});
+  const OnboardingFlow({super.key, required this.progressRepository});
+
+  final ProgressRepository progressRepository;
 
   @override
   State<OnboardingFlow> createState() => _OnboardingFlowState();
@@ -41,7 +44,12 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
         equipment: Set.from(equipment),
       );
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => HomeShell(profile: profile)),
+        MaterialPageRoute(
+          builder: (_) => HomeShell(
+            profile: profile,
+            progressRepository: widget.progressRepository,
+          ),
+        ),
       );
       return;
     }

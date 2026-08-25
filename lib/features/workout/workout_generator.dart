@@ -1,5 +1,8 @@
+import 'dart:math';
+
 import '../../fitness_engine/data/exercise_catalog.dart';
 import '../../fitness_engine/models/exercise.dart';
+import '../../fitness_engine/storage/progress_repository.dart';
 import '../onboarding/onboarding_state.dart' as onboarding;
 
 enum WorkoutBlockType {
@@ -75,13 +78,8 @@ class GeneratedWorkout {
       for (var round = 0; round < block.rounds; round++) {
         result.addAll(block.steps);
 
-        if (round < block.rounds - 1 &&
-            block.restBetweenRounds > 0) {
-          result.add(
-            WorkoutStep.rest(
-              seconds: block.restBetweenRounds,
-            ),
-          );
+        if (round < block.rounds - 1 && block.restBetweenRounds > 0) {
+          result.add(WorkoutStep.rest(seconds: block.restBetweenRounds));
         }
       }
     }
@@ -90,9 +88,7 @@ class GeneratedWorkout {
   }
 
   int get exerciseCount {
-    return steps
-        .where((step) => step.type != WorkoutStepType.rest)
-        .length;
+    return steps.where((step) => step.type != WorkoutStepType.rest).length;
   }
 
   int get totalSeconds {
@@ -116,101 +112,129 @@ class GeneratedWorkout {
   }
 }
 
+/// El Motor: genera un entrenamiento completo y seguro a partir del
+/// perfil del usuario y, si está disponible, de su progreso.
+///
+/// Reglas de seguridad que aplica siempre, sin excepción:
+///  - Toda sesión con al menos un ejercicio principal lleva
+///    calentamiento real (movilidad/activación) y enfriamiento real
+///    (estiramientos), nunca ejercicios de trabajo reciclados.
+///  - Los ejercicios se filtran para que su nivel no se aleje
+///    demasiado del nivel del usuario (nunca se cuela un ejercicio
+///    avanzado en una sesión de principiante solo porque el catálogo
+///    esté corto de opciones).
+///  - Los ejercicios de impacto (saltos) se limitan según el nivel,
+///    para no acumular estrés articular innecesario en una sesión.
 class WorkoutGenerator {
   const WorkoutGenerator();
 
   GeneratedWorkout generate(
-      onboarding.OnboardingState profile,
-      ) {
+    onboarding.OnboardingState profile, {
+    ProgressRepository? progress,
+  }) {
     final targetCount = _exerciseCount(profile.duration);
 
-    final allowedEquipment = <Equipment>{
-      Equipment.none,
-    };
+    final allowedEquipment = <Equipment>{Equipment.none};
 
     if (profile.equipment.contains(onboarding.Equipment.backpack)) {
       allowedEquipment.add(Equipment.backpack);
     }
-
     if (profile.equipment.contains(onboarding.Equipment.bands)) {
       allowedEquipment.add(Equipment.resistanceBand);
     }
-
     if (profile.equipment.contains(onboarding.Equipment.dumbbells)) {
       allowedEquipment.add(Equipment.dumbbells);
     }
 
     final targetMuscles = _targetMuscles(profile);
-
     final userLevel = _userLevel(profile);
+    final maxLevelGap = _maxLevelGap(profile.level);
+    final maxHighImpact = _maxHighImpact(profile.level);
 
-    final candidates = exerciseCatalog
+    var candidates = exerciseCatalog
+        .where((exercise) => exercise.role == ExerciseRole.main)
         .where(
-          (exercise) => exercise.equipment.every(
-        allowedEquipment.contains,
-      ),
-    )
+          (exercise) => exercise.equipment.every(allowedEquipment.contains),
+        )
         .where(
           (exercise) =>
-      targetMuscles.isEmpty ||
-          exercise.muscles.any(targetMuscles.contains),
-    )
-        .toList()
-      ..sort(
-            (a, b) {
-          final aDistance = (a.level - userLevel).abs();
-          final bDistance = (b.level - userLevel).abs();
+              targetMuscles.isEmpty ||
+              exercise.muscles.any(targetMuscles.contains),
+        )
+        .where(
+          (exercise) => (exercise.level - userLevel).abs() <= maxLevelGap,
+        )
+        .toList();
 
-          return aDistance.compareTo(bDistance);
-        },
-      );
+    // Ordena por cercanía de nivel, pero baraja ligeramente los
+    // empates para que sesiones consecutivas no sean siempre
+    // idénticas: la variedad ayuda a la adherencia y evita el
+    // estancamiento por repetir siempre el mismo patrón exacto.
+    candidates = _stableShuffleByLevelDistance(candidates, userLevel);
 
-    final selected = _selectExercises(
-      candidates,
-      targetCount,
-    );
+    var selected = _selectExercises(candidates, targetCount);
+    selected = _capHighImpact(selected, candidates, maxHighImpact);
 
     if (selected.isEmpty) {
-      return const GeneratedWorkout(
-        title: 'Entrenamiento',
-        blocks: [],
-      );
+      return const GeneratedWorkout(title: 'Entrenamiento', blocks: []);
     }
 
-    final warmup = _createWarmup(
-      selected,
-      userLevel,
-    );
+    final resolved = [
+      for (final exercise in selected) _resolve(exercise, userLevel, progress),
+    ];
 
-    final main = _createMainBlock(
-      selected,
-      profile,
-      userLevel,
-    );
-
-    final finisher = _createFinisher(
-      selected,
-      profile,
-    );
-
-    final cooldown = _createCooldown(
-      selected,
-    );
+    final warmup = _createWarmup(resolved, targetMuscles);
+    final main = _createMainBlock(resolved, profile);
+    final finisher = _createFinisher(resolved, profile);
+    final cooldown = _createCooldown(resolved, targetMuscles);
 
     return GeneratedWorkout(
       title: _workoutTitle(profile),
       blocks: [
-        if (warmup != null) warmup,
+        warmup,
         main,
         if (finisher != null) finisher,
-        if (cooldown != null) cooldown,
+        cooldown,
       ],
     );
   }
 
-  int _exerciseCount(
-      onboarding.WorkoutDuration? duration,
-      ) {
+  // ------------------------------------------------------------
+  // Resolución de carga: usa el progreso guardado si existe,
+  // y si no, calcula un valor de partida razonable según nivel.
+  // ------------------------------------------------------------
+
+  _ResolvedExercise _resolve(
+    Exercise exercise,
+    int userLevel,
+    ProgressRepository? progress,
+  ) {
+    final suggestion = progress?.getExerciseProgress(exercise.id);
+
+    if (suggestion == null) {
+      return _ResolvedExercise(
+        exercise: exercise,
+        value: exercise.isTimed
+            ? _exerciseSeconds(exercise, userLevel)
+            : _repetitions(exercise, userLevel),
+      );
+    }
+
+    // La progresión puede sugerir una variante distinta (más o
+    // menos exigente) dentro de la misma cadena.
+    final nextExercise = exerciseCatalog.firstWhere(
+      (candidate) => candidate.id == suggestion.exerciseId,
+      orElse: () => exercise,
+    );
+
+    return _ResolvedExercise(exercise: nextExercise, value: suggestion.currentValue);
+  }
+
+  // ------------------------------------------------------------
+  // Selección de ejercicios principales
+  // ------------------------------------------------------------
+
+  int _exerciseCount(onboarding.WorkoutDuration? duration) {
     return switch (duration) {
       onboarding.WorkoutDuration.ten => 4,
       onboarding.WorkoutDuration.fifteen => 5,
@@ -221,9 +245,7 @@ class WorkoutGenerator {
     };
   }
 
-  int _userLevel(
-      onboarding.OnboardingState profile,
-      ) {
+  int _userLevel(onboarding.OnboardingState profile) {
     return switch (profile.level) {
       onboarding.FitnessLevel.beginner => 1,
       onboarding.FitnessLevel.intermediate => 3,
@@ -232,9 +254,29 @@ class WorkoutGenerator {
     };
   }
 
-  Set<MuscleGroup> _targetMuscles(
-      onboarding.OnboardingState profile,
-      ) {
+  /// Cuánto puede alejarse el nivel de un ejercicio del nivel del
+  /// usuario. Los principiantes tienen el margen más estrecho: es
+  /// la protección clave contra recibir ejercicios demasiado
+  /// avanzados para su condición física.
+  int _maxLevelGap(onboarding.FitnessLevel? level) {
+    return switch (level) {
+      onboarding.FitnessLevel.beginner => 1,
+      onboarding.FitnessLevel.intermediate => 2,
+      onboarding.FitnessLevel.advanced => 3,
+      null => 1,
+    };
+  }
+
+  int _maxHighImpact(onboarding.FitnessLevel? level) {
+    return switch (level) {
+      onboarding.FitnessLevel.beginner => 0,
+      onboarding.FitnessLevel.intermediate => 2,
+      onboarding.FitnessLevel.advanced => 3,
+      null => 0,
+    };
+  }
+
+  Set<MuscleGroup> _targetMuscles(onboarding.OnboardingState profile) {
     final result = <MuscleGroup>{};
 
     for (final goal in profile.goals) {
@@ -260,10 +302,30 @@ class WorkoutGenerator {
     return result;
   }
 
-  List<Exercise> _selectExercises(
-      List<Exercise> candidates,
-      int count,
-      ) {
+  List<Exercise> _stableShuffleByLevelDistance(
+    List<Exercise> candidates,
+    int userLevel,
+  ) {
+    final random = Random();
+    final grouped = <int, List<Exercise>>{};
+
+    for (final exercise in candidates) {
+      final distance = (exercise.level - userLevel).abs();
+      grouped.putIfAbsent(distance, () => []).add(exercise);
+    }
+
+    final distances = grouped.keys.toList()..sort();
+    final result = <Exercise>[];
+
+    for (final distance in distances) {
+      final group = grouped[distance]!..shuffle(random);
+      result.addAll(group);
+    }
+
+    return result;
+  }
+
+  List<Exercise> _selectExercises(List<Exercise> candidates, int count) {
     final selected = <Exercise>[];
     final patterns = <MovementPattern>{};
 
@@ -271,17 +333,11 @@ class WorkoutGenerator {
       if (patterns.add(exercise.pattern)) {
         selected.add(exercise);
       }
-
-      if (selected.length == count) {
-        break;
-      }
+      if (selected.length == count) break;
     }
 
     for (final exercise in candidates) {
-      if (selected.length == count) {
-        break;
-      }
-
+      if (selected.length == count) break;
       if (!selected.contains(exercise)) {
         selected.add(exercise);
       }
@@ -290,47 +346,98 @@ class WorkoutGenerator {
     return selected;
   }
 
-  WorkoutBlock? _createWarmup(
-      List<Exercise> exercises,
-      int level,
-      ) {
-    if (exercises.isEmpty) {
-      return null;
+  /// Sustituye el exceso de ejercicios de impacto por alternativas
+  /// de bajo impacto del mismo patrón cuando es posible, para no
+  /// sobrecargar articulaciones en una sola sesión.
+  List<Exercise> _capHighImpact(
+    List<Exercise> selected,
+    List<Exercise> candidates,
+    int maxHighImpact,
+  ) {
+    final highImpactCount = selected.where((e) => e.highImpact).length;
+    if (highImpactCount <= maxHighImpact) {
+      return selected;
     }
 
-    final count = exercises.length >= 3
-        ? 3
-        : exercises.length;
+    final result = List<Exercise>.from(selected);
+    var excess = highImpactCount - maxHighImpact;
+
+    for (var i = 0; i < result.length && excess > 0; i++) {
+      if (!result[i].highImpact) continue;
+
+      final replacement = candidates.firstWhere(
+        (candidate) =>
+            !candidate.highImpact &&
+            !result.contains(candidate) &&
+            candidate.pattern == result[i].pattern,
+        orElse: () => result[i],
+      );
+
+      if (replacement.id != result[i].id) {
+        result[i] = replacement;
+        excess--;
+      }
+    }
+
+    return result;
+  }
+
+  // ------------------------------------------------------------
+  // Bloques
+  // ------------------------------------------------------------
+
+  WorkoutBlock _createWarmup(
+    List<_ResolvedExercise> selected,
+    Set<MuscleGroup> targetMuscles,
+  ) {
+    final pool = exerciseCatalog
+        .where((exercise) => exercise.role == ExerciseRole.warmup)
+        .toList();
+
+    final relevant = pool
+        .where((exercise) => exercise.muscles.any(targetMuscles.contains))
+        .toList();
+    final general = pool.where((e) => !relevant.contains(e)).toList();
+
+    final chosen = <Exercise>[];
+
+    // Siempre eleva pulsaciones de forma progresiva antes de nada.
+    final cardio = pool.firstWhere(
+      (e) => e.pattern == MovementPattern.cardio,
+      orElse: () => pool.first,
+    );
+    chosen.add(cardio);
+
+    for (final exercise in [...relevant, ...general]) {
+      if (chosen.length >= 3) break;
+      if (!chosen.contains(exercise)) chosen.add(exercise);
+    }
 
     return WorkoutBlock(
       title: 'Calentamiento',
       type: WorkoutBlockType.warmup,
       rounds: 1,
+      restBetweenRounds: 0,
       steps: [
-        for (final exercise in exercises.take(count))
+        for (final exercise in chosen)
           if (exercise.isTimed)
             WorkoutStep.timed(
               exercise: exercise,
-              seconds: _exerciseSeconds(
-                exercise,
-                level,
-              ),
+              seconds: exercise.defaultSeconds ?? 25,
             )
           else
             WorkoutStep.reps(
               exercise: exercise,
-              repetitions: 6,
+              repetitions: exercise.minRepetitions,
             ),
       ],
-      restBetweenRounds: 0,
     );
   }
 
   WorkoutBlock _createMainBlock(
-      List<Exercise> exercises,
-      onboarding.OnboardingState profile,
-      int level,
-      ) {
+    List<_ResolvedExercise> resolved,
+    onboarding.OnboardingState profile,
+  ) {
     final rounds = switch (profile.level) {
       onboarding.FitnessLevel.beginner => 2,
       onboarding.FitnessLevel.intermediate => 3,
@@ -338,43 +445,20 @@ class WorkoutGenerator {
       null => 2,
     };
 
-    final useCircuit =
-        exercises.length >= 4 &&
-            profile.duration != onboarding.WorkoutDuration.ten;
+    final useCircuit = resolved.length >= 4 &&
+        profile.duration != onboarding.WorkoutDuration.ten;
 
-    final steps = <WorkoutStep>[];
-
-    for (final exercise in exercises) {
-      if (exercise.isTimed) {
-        steps.add(
-          WorkoutStep.timed(
-            exercise: exercise,
-            seconds: _exerciseSeconds(
-              exercise,
-              level,
-            ),
-          ),
-        );
-      } else {
-        steps.add(
-          WorkoutStep.reps(
-            exercise: exercise,
-            repetitions: _repetitions(
-              exercise,
-              level,
-            ),
-          ),
-        );
-      }
-    }
+    final steps = <WorkoutStep>[
+      for (final item in resolved)
+        if (item.exercise.isTimed)
+          WorkoutStep.timed(exercise: item.exercise, seconds: item.value)
+        else
+          WorkoutStep.reps(exercise: item.exercise, repetitions: item.value),
+    ];
 
     return WorkoutBlock(
-      title: useCircuit
-          ? 'Circuito principal'
-          : 'Bloque principal',
-      type: useCircuit
-          ? WorkoutBlockType.circuit
-          : WorkoutBlockType.strength,
+      title: useCircuit ? 'Circuito principal' : 'Bloque principal',
+      type: useCircuit ? WorkoutBlockType.circuit : WorkoutBlockType.strength,
       rounds: rounds,
       steps: steps,
       restBetweenRounds: _roundRest(profile),
@@ -382,70 +466,74 @@ class WorkoutGenerator {
   }
 
   WorkoutBlock? _createFinisher(
-      List<Exercise> exercises,
-      onboarding.OnboardingState profile,
-      ) {
-    if (profile.duration == onboarding.WorkoutDuration.ten) {
-      return null;
-    }
+    List<_ResolvedExercise> resolved,
+    onboarding.OnboardingState profile,
+  ) {
+    if (profile.duration == onboarding.WorkoutDuration.ten) return null;
+    if (profile.level == onboarding.FitnessLevel.beginner) return null;
+    if (resolved.length < 3) return null;
 
-    if (exercises.length < 3) {
-      return null;
-    }
+    // Evita cerrar con un ejercicio de impacto: el finisher ya
+    // exige lo suficiente sin sumarle riesgo de aterrizaje con
+    // fatiga acumulada.
+    final candidates = resolved.where((r) => !r.exercise.highImpact).toList();
+    if (candidates.isEmpty) return null;
 
-    final selected = exercises.last;
+    final item = candidates.last;
 
     return WorkoutBlock(
       title: 'Finisher',
       type: WorkoutBlockType.finisher,
       rounds: 1,
-      steps: [
-        if (selected.isTimed)
-          WorkoutStep.timed(
-            exercise: selected,
-            seconds: _exerciseSeconds(
-              selected,
-              _userLevel(profile),
-            ),
-          )
-        else
-          WorkoutStep.reps(
-            exercise: selected,
-            repetitions: _repetitions(
-              selected,
-              _userLevel(profile),
-            ),
-          ),
-      ],
       restBetweenRounds: 0,
+      steps: [
+        if (item.exercise.isTimed)
+          WorkoutStep.timed(exercise: item.exercise, seconds: item.value)
+        else
+          WorkoutStep.reps(exercise: item.exercise, repetitions: item.value),
+      ],
     );
   }
 
-  WorkoutBlock? _createCooldown(
-      List<Exercise> exercises,
-      ) {
-    if (exercises.isEmpty) {
-      return null;
+  WorkoutBlock _createCooldown(
+    List<_ResolvedExercise> resolved,
+    Set<MuscleGroup> targetMuscles,
+  ) {
+    final pool = exerciseCatalog
+        .where((exercise) => exercise.role == ExerciseRole.cooldown)
+        .toList();
+
+    final relevant = pool
+        .where((exercise) => exercise.muscles.any(targetMuscles.contains))
+        .toList();
+    final general = pool.where((e) => !relevant.contains(e)).toList();
+
+    final chosen = <Exercise>[];
+    for (final exercise in [...relevant, ...general]) {
+      if (chosen.length >= 2) break;
+      chosen.add(exercise);
+    }
+
+    if (chosen.isEmpty && pool.isNotEmpty) {
+      chosen.add(pool.first);
     }
 
     return WorkoutBlock(
       title: 'Recuperación',
       type: WorkoutBlockType.cooldown,
       rounds: 1,
-      steps: [
-        WorkoutStep.timed(
-          exercise: exercises.first,
-          seconds: 30,
-        ),
-      ],
       restBetweenRounds: 0,
+      steps: [
+        for (final exercise in chosen)
+          WorkoutStep.timed(
+            exercise: exercise,
+            seconds: exercise.defaultSeconds ?? 25,
+          ),
+      ],
     );
   }
 
-  int _exerciseSeconds(
-      Exercise exercise,
-      int level,
-      ) {
+  int _exerciseSeconds(Exercise exercise, int level) {
     final base = exercise.defaultSeconds ?? 30;
 
     final multiplier = switch (level) {
@@ -458,21 +546,12 @@ class WorkoutGenerator {
 
     final result = (base * multiplier).round();
 
-    if (result < 10) {
-      return 10;
-    }
-
-    if (result > 90) {
-      return 90;
-    }
-
+    if (result < 10) return 10;
+    if (result > 90) return 90;
     return result;
   }
 
-  int _repetitions(
-      Exercise exercise,
-      int level,
-      ) {
+  int _repetitions(Exercise exercise, int level) {
     final adjustment = switch (level) {
       1 => -2,
       2 => -1,
@@ -483,20 +562,13 @@ class WorkoutGenerator {
 
     var result = 10 + adjustment;
 
-    if (result < exercise.minRepetitions) {
-      result = exercise.minRepetitions;
-    }
-
-    if (result > exercise.maxRepetitions) {
-      result = exercise.maxRepetitions;
-    }
+    if (result < exercise.minRepetitions) result = exercise.minRepetitions;
+    if (result > exercise.maxRepetitions) result = exercise.maxRepetitions;
 
     return result;
   }
 
-  int _roundRest(
-      onboarding.OnboardingState profile,
-      ) {
+  int _roundRest(onboarding.OnboardingState profile) {
     return switch (profile.level) {
       onboarding.FitnessLevel.beginner => 60,
       onboarding.FitnessLevel.intermediate => 45,
@@ -505,37 +577,21 @@ class WorkoutGenerator {
     };
   }
 
-  String _workoutTitle(
-      onboarding.OnboardingState profile,
-      ) {
-    if (profile.goals.contains('full_body')) {
-      return 'Full Body adaptado';
-    }
-
-    if (profile.goals.length > 1) {
-      return 'Entrenamiento completo';
-    }
-
-    if (profile.goals.contains('arms')) {
-      return 'Brazos';
-    }
-
-    if (profile.goals.contains('chest')) {
-      return 'Pecho';
-    }
-
-    if (profile.goals.contains('abs')) {
-      return 'Abdominales';
-    }
-
-    if (profile.goals.contains('legs')) {
-      return 'Piernas';
-    }
-
-    if (profile.goals.contains('back')) {
-      return 'Espalda';
-    }
-
+  String _workoutTitle(onboarding.OnboardingState profile) {
+    if (profile.goals.contains('full_body')) return 'Full Body adaptado';
+    if (profile.goals.length > 1) return 'Entrenamiento completo';
+    if (profile.goals.contains('arms')) return 'Brazos';
+    if (profile.goals.contains('chest')) return 'Pecho';
+    if (profile.goals.contains('abs')) return 'Abdominales';
+    if (profile.goals.contains('legs')) return 'Piernas';
+    if (profile.goals.contains('back')) return 'Espalda';
     return 'Entrenamiento de hoy';
   }
+}
+
+class _ResolvedExercise {
+  const _ResolvedExercise({required this.exercise, required this.value});
+
+  final Exercise exercise;
+  final int value;
 }

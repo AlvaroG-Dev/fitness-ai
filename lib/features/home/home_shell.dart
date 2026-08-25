@@ -1,15 +1,19 @@
 import 'package:flutter/material.dart';
 
+import '../../fitness_engine/storage/progress_repository.dart';
 import '../onboarding/onboarding_state.dart';
+import '../progress/progress_page.dart';
 import '../workout/workout_page.dart';
 
 class HomeShell extends StatefulWidget {
   const HomeShell({
     super.key,
     required this.profile,
+    required this.progressRepository,
   });
 
   final OnboardingState profile;
+  final ProgressRepository progressRepository;
 
   @override
   State<HomeShell> createState() => _HomeShellState();
@@ -17,6 +21,17 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   int selectedIndex = 0;
+
+  void _startWorkout() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => WorkoutPage(
+          profile: widget.profile,
+          progressRepository: widget.progressRepository,
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -28,27 +43,16 @@ class _HomeShellState extends State<HomeShell> {
           children: [
             _HomeTab(
               profile: widget.profile,
-              onStart: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => WorkoutPage(
-                      profile: widget.profile,
-                    ),
-                  ),
-                );
-              },
+              progressRepository: widget.progressRepository,
+              onStart: _startWorkout,
             ),
-            _SimpleTab(
+            const _SimpleTab(
               icon: Icons.calendar_month_rounded,
               title: 'PLAN',
               text: 'Aquí aparecerá tu planificación semanal.',
             ),
-            _SimpleTab(
-              icon: Icons.bar_chart_rounded,
-              title: 'PROGRESO',
-              text: 'Aquí podrás ver cómo evolucionas.',
-            ),
-            _SimpleTab(
+            ProgressPage(progressRepository: widget.progressRepository),
+            const _SimpleTab(
               icon: Icons.person_outline_rounded,
               title: 'PERFIL',
               text: 'Tu perfil y preferencias.',
@@ -93,23 +97,21 @@ class _HomeShellState extends State<HomeShell> {
 class _HomeTab extends StatelessWidget {
   const _HomeTab({
     required this.profile,
+    required this.progressRepository,
     required this.onStart,
   });
 
   final OnboardingState profile;
+  final ProgressRepository progressRepository;
   final VoidCallback onStart;
 
   @override
   Widget build(BuildContext context) {
     final accent = Theme.of(context).colorScheme.primary;
+    final streak = progressRepository.history.streak;
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(
-        20,
-        12,
-        20,
-        30,
-      ),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
       children: [
         const _TopBar(),
         const SizedBox(height: 28),
@@ -125,11 +127,25 @@ class _HomeTab extends StatelessWidget {
         const SizedBox(height: 6),
         const Text(
           '¿Entrenamos?',
-          style: TextStyle(
-            fontSize: 34,
-            fontWeight: FontWeight.w900,
-          ),
+          style: TextStyle(fontSize: 34, fontWeight: FontWeight.w900),
         ),
+        if (streak > 0) ...[
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              const Icon(
+                Icons.local_fire_department_rounded,
+                color: Color(0xFFFFC15E),
+                size: 18,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'Llevas $streak ${streak == 1 ? 'día' : 'días'} seguidos',
+                style: const TextStyle(color: Colors.white54, fontSize: 14),
+              ),
+            ],
+          ),
+        ],
         const SizedBox(height: 22),
         InkWell(
           onTap: onStart,
@@ -146,13 +162,10 @@ class _HomeTab extends StatelessWidget {
                 ],
               ),
               borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: accent.withValues(alpha: 0.35),
-              ),
+              border: Border.all(color: accent.withValues(alpha: 0.35)),
             ),
             child: Column(
-              crossAxisAlignment:
-              CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
@@ -160,35 +173,24 @@ class _HomeTab extends StatelessWidget {
                       width: 48,
                       height: 48,
                       decoration: BoxDecoration(
-                        color:
-                        accent.withValues(alpha: 0.15),
-                        borderRadius:
-                        BorderRadius.circular(15),
+                        color: accent.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(15),
                       ),
-                      child: Icon(
-                        Icons.auto_awesome_rounded,
-                        color: accent,
-                      ),
+                      child: Icon(Icons.auto_awesome_rounded, color: accent),
                     ),
                     const Spacer(),
-                    Icon(
-                      Icons.arrow_forward_rounded,
-                      color: accent,
-                    ),
+                    Icon(Icons.arrow_forward_rounded, color: accent),
                   ],
                 ),
                 const SizedBox(height: 24),
                 const Text(
                   'Entrenamiento para ti',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w900,
-                  ),
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
                 ),
                 const SizedBox(height: 7),
                 const Text(
                   'Una sesión adaptada a tus objetivos, '
-                      'nivel y tiempo disponible.',
+                  'nivel y tiempo disponible.',
                   style: TextStyle(
                     color: Colors.white60,
                     fontSize: 14,
@@ -270,10 +272,7 @@ class _TopBar extends StatelessWidget {
             color: accent.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(14),
           ),
-          child: Icon(
-            Icons.bolt_rounded,
-            color: accent,
-          ),
+          child: Icon(Icons.bolt_rounded, color: accent),
         ),
         const SizedBox(width: 11),
         const Text(
@@ -287,9 +286,7 @@ class _TopBar extends StatelessWidget {
         const Spacer(),
         IconButton(
           onPressed: () {},
-          icon: const Icon(
-            Icons.notifications_none_rounded,
-          ),
+          icon: const Icon(Icons.notifications_none_rounded),
         ),
       ],
     );
@@ -321,9 +318,7 @@ class _QuickCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: const Color(0xFF15181D),
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: Colors.white10,
-          ),
+          border: Border.all(color: Colors.white10),
         ),
         child: Row(
           children: [
@@ -334,16 +329,12 @@ class _QuickCard extends StatelessWidget {
                 color: accent.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(13),
               ),
-              child: Icon(
-                icon,
-                color: accent,
-              ),
+              child: Icon(icon, color: accent),
             ),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
-                crossAxisAlignment:
-                CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     title,
@@ -363,10 +354,7 @@ class _QuickCard extends StatelessWidget {
                 ],
               ),
             ),
-            const Icon(
-              Icons.chevron_right_rounded,
-              color: Colors.white38,
-            ),
+            const Icon(Icons.chevron_right_rounded, color: Colors.white38),
           ],
         ),
       ),
@@ -393,30 +381,19 @@ class _SimpleTab extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(30),
         child: Column(
-          mainAxisAlignment:
-          MainAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              icon,
-              size: 60,
-              color: accent,
-            ),
+            Icon(icon, size: 60, color: accent),
             const SizedBox(height: 20),
             Text(
               title,
-              style: const TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.w900,
-              ),
+              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 8),
             Text(
               text,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.white54,
-                fontSize: 15,
-              ),
+              style: const TextStyle(color: Colors.white54, fontSize: 15),
             ),
           ],
         ),

@@ -1,3 +1,5 @@
+/// Percepción de esfuerzo (RPE simplificado) que da el usuario al
+/// terminar un entrenamiento o un ejercicio concreto.
 enum WorkoutDifficulty {
   veryEasy,
   easy,

@@ -2,6 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../fitness_engine/models/workout_feedback.dart';
+import '../../fitness_engine/models/workout_result.dart';
+import '../../fitness_engine/storage/progress_repository.dart';
 import '../onboarding/onboarding_state.dart';
 import 'workout_feedback_page.dart';
 import 'workout_generator.dart';
@@ -11,18 +14,18 @@ class WorkoutSessionPage extends StatefulWidget {
     super.key,
     required this.profile,
     required this.workout,
+    required this.progressRepository,
   });
 
   final OnboardingState profile;
   final GeneratedWorkout workout;
+  final ProgressRepository progressRepository;
 
   @override
-  State<WorkoutSessionPage> createState() =>
-      _WorkoutSessionPageState();
+  State<WorkoutSessionPage> createState() => _WorkoutSessionPageState();
 }
 
-class _WorkoutSessionPageState
-    extends State<WorkoutSessionPage> {
+class _WorkoutSessionPageState extends State<WorkoutSessionPage> {
   Timer? timer;
 
   int currentStep = 0;
@@ -32,29 +35,22 @@ class _WorkoutSessionPageState
   bool paused = false;
   bool finished = false;
 
+  final List<ExerciseResult> _exerciseResults = [];
+
   int get totalSteps => widget.workout.steps.length;
 
   WorkoutStep? get current {
-    if (currentStep >= totalSteps) {
-      return null;
-    }
-
+    if (currentStep >= totalSteps) return null;
     return widget.workout.steps[currentStep];
   }
 
   int get completedSteps {
-    if (currentStep >= totalSteps) {
-      return totalSteps;
-    }
-
+    if (currentStep >= totalSteps) return totalSteps;
     return currentStep;
   }
 
   double get progress {
-    if (totalSteps == 0) {
-      return 1;
-    }
-
+    if (totalSteps == 0) return 1;
     return completedSteps / totalSteps;
   }
 
@@ -62,36 +58,23 @@ class _WorkoutSessionPageState
   void initState() {
     super.initState();
 
-    timer = Timer.periodic(
-      const Duration(seconds: 1),
-          (_) {
-        if (paused || finished) {
-          return;
+    timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (paused || finished) return;
+
+      setState(() {
+        elapsedSeconds++;
+
+        if ((current?.type == WorkoutStepType.timed ||
+                current?.type == WorkoutStepType.rest) &&
+            remainingSeconds > 0) {
+          remainingSeconds--;
+
+          if (remainingSeconds == 0) {
+            _completeCurrentStep();
+          }
         }
-
-        setState(() {
-          elapsedSeconds++;
-
-          if (current?.type == WorkoutStepType.timed &&
-              remainingSeconds > 0) {
-            remainingSeconds--;
-
-            if (remainingSeconds == 0) {
-              _completeCurrentStep();
-            }
-          }
-
-          if (current?.type == WorkoutStepType.rest &&
-              remainingSeconds > 0) {
-            remainingSeconds--;
-
-            if (remainingSeconds == 0) {
-              _completeCurrentStep();
-            }
-          }
-        });
-      },
-    );
+      });
+    });
 
     _prepareCurrentStep();
   }
@@ -104,10 +87,7 @@ class _WorkoutSessionPageState
 
   void _prepareCurrentStep() {
     final step = current;
-
-    if (step == null) {
-      return;
-    }
+    if (step == null) return;
 
     if (step.type == WorkoutStepType.timed ||
         step.type == WorkoutStepType.rest) {
@@ -117,10 +97,33 @@ class _WorkoutSessionPageState
     }
   }
 
+  void _recordCurrentStep() {
+    final step = current;
+    if (step == null) return;
+    if (step.type == WorkoutStepType.rest) return;
+
+    final exercise = step.exercise;
+    if (exercise == null) return;
+
+    final value = step.type == WorkoutStepType.timed
+        ? (step.seconds ?? 0)
+        : (step.repetitions ?? 0);
+
+    // El feedback global (RPE) se conoce solo al terminar la sesión;
+    // se rellena en `_finishWorkout` tras la pantalla de feedback.
+    _exerciseResults.add(
+      ExerciseResult(
+        exerciseId: exercise.id,
+        value: value,
+        feedback: WorkoutDifficulty.good,
+      ),
+    );
+  }
+
   void _completeCurrentStep() {
-    if (finished) {
-      return;
-    }
+    if (finished) return;
+
+    _recordCurrentStep();
 
     if (currentStep >= totalSteps - 1) {
       _finishWorkout();
@@ -142,10 +145,7 @@ class _WorkoutSessionPageState
   }
 
   void _togglePause() {
-    if (finished) {
-      return;
-    }
-
+    if (finished) return;
     setState(() {
       paused = !paused;
     });
@@ -153,35 +153,42 @@ class _WorkoutSessionPageState
 
   void _skipRest() {
     final step = current;
-
-    if (step == null) {
-      return;
-    }
-
-    if (step.type != WorkoutStepType.rest) {
-      return;
-    }
-
+    if (step == null || step.type != WorkoutStepType.rest) return;
     _completeCurrentStep();
   }
 
   void _completeRepetitionStep() {
     final step = current;
-
-    if (step == null ||
-        step.type != WorkoutStepType.reps) {
-      return;
-    }
-
+    if (step == null || step.type != WorkoutStepType.reps) return;
     _completeCurrentStep();
+  }
+
+  void _onFeedbackCompleted(WorkoutFeedback feedback) {
+    final results = [
+      for (final result in _exerciseResults)
+        ExerciseResult(
+          exerciseId: result.exerciseId,
+          value: result.value,
+          feedback: feedback.difficulty,
+        ),
+    ];
+
+    widget.progressRepository.saveWorkout(
+      WorkoutResult(
+        workoutTitle: widget.workout.title,
+        completedAt: DateTime.now(),
+        elapsedSeconds: elapsedSeconds,
+        feedback: feedback.difficulty,
+        exercises: results,
+      ),
+    );
+
+    Navigator.of(context).pop(feedback);
   }
 
   String _blockTypeLabel(WorkoutStep step) {
     final index = _findBlockIndex();
-
-    if (index == -1) {
-      return 'ENTRENAMIENTO';
-    }
+    if (index == -1) return 'ENTRENAMIENTO';
 
     final block = _blockForStep(index);
 
@@ -200,27 +207,18 @@ class _WorkoutSessionPageState
     var counter = 0;
 
     for (var blockIndex = 0;
-    blockIndex < widget.workout.blocks.length;
-    blockIndex++) {
+        blockIndex < widget.workout.blocks.length;
+        blockIndex++) {
       final block = widget.workout.blocks[blockIndex];
 
-      for (var round = 0;
-      round < block.rounds;
-      round++) {
+      for (var round = 0; round < block.rounds; round++) {
         for (final _ in block.steps) {
-          if (counter == currentStep) {
-            return blockIndex;
-          }
-
+          if (counter == currentStep) return blockIndex;
           counter++;
         }
 
-        if (round < block.rounds - 1 &&
-            block.restBetweenRounds > 0) {
-          if (counter == currentStep) {
-            return blockIndex;
-          }
-
+        if (round < block.rounds - 1 && block.restBetweenRounds > 0) {
+          if (counter == currentStep) return blockIndex;
           counter++;
         }
       }
@@ -237,23 +235,14 @@ class _WorkoutSessionPageState
     var counter = 0;
 
     for (final block in widget.workout.blocks) {
-      for (var round = 0;
-      round < block.rounds;
-      round++) {
+      for (var round = 0; round < block.rounds; round++) {
         for (final _ in block.steps) {
-          if (counter == currentStep) {
-            return round + 1;
-          }
-
+          if (counter == currentStep) return round + 1;
           counter++;
         }
 
-        if (round < block.rounds - 1 &&
-            block.restBetweenRounds > 0) {
-          if (counter == currentStep) {
-            return round + 1;
-          }
-
+        if (round < block.rounds - 1 && block.restBetweenRounds > 0) {
+          if (counter == currentStep) return round + 1;
           counter++;
         }
       }
@@ -265,38 +254,38 @@ class _WorkoutSessionPageState
   @override
   Widget build(BuildContext context) {
     if (finished) {
-      return _WorkoutCompletePage(
-        profile: widget.profile,
+      return WorkoutFeedbackPage(
         workout: widget.workout,
         elapsedSeconds: elapsedSeconds,
+        onCompleted: _onFeedbackCompleted,
       );
     }
 
     final step = current;
-
-    if (step == null) {
-      return const SizedBox.shrink();
-    }
+    if (step == null) return const SizedBox.shrink();
 
     return Scaffold(
       backgroundColor: const Color(0xFF0B0D10),
       body: SafeArea(
-        child: Column(
+        child: Stack(
           children: [
-            _TopBar(
-              elapsedSeconds: elapsedSeconds,
-              progress: progress,
-              paused: paused,
-              onPause: _togglePause,
-            ),
-            Expanded(
-              child: AnimatedSwitcher(
-                duration: const Duration(
-                  milliseconds: 250,
+            Column(
+              children: [
+                _TopBar(
+                  elapsedSeconds: elapsedSeconds,
+                  progress: progress,
+                  paused: paused,
+                  onPause: _togglePause,
                 ),
-                child: _buildCurrentStep(step),
-              ),
+                Expanded(
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 250),
+                    child: _buildCurrentStep(step),
+                  ),
+                ),
+              ],
             ),
+            if (paused) _PausedOverlay(onResume: _togglePause),
           ],
         ),
       ),
@@ -314,10 +303,7 @@ class _WorkoutSessionPageState
     }
 
     final exercise = step.exercise;
-
-    if (exercise == null) {
-      return const SizedBox.shrink();
-    }
+    if (exercise == null) return const SizedBox.shrink();
 
     final blockLabel = _blockTypeLabel(step);
     final round = _currentRound();
@@ -326,6 +312,7 @@ class _WorkoutSessionPageState
       return _TimedExerciseView(
         key: ValueKey('timed-$currentStep'),
         exerciseName: exercise.name,
+        cue: exercise.cue,
         blockLabel: blockLabel,
         round: round,
         seconds: remainingSeconds,
@@ -336,10 +323,55 @@ class _WorkoutSessionPageState
     return _RepetitionExerciseView(
       key: ValueKey('reps-$currentStep'),
       exerciseName: exercise.name,
+      cue: exercise.cue,
       blockLabel: blockLabel,
       round: round,
       repetitions: step.repetitions ?? 0,
       onComplete: _completeRepetitionStep,
+    );
+  }
+}
+
+class _PausedOverlay extends StatelessWidget {
+  const _PausedOverlay({required this.onResume});
+
+  final VoidCallback onResume;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
+
+    return Positioned.fill(
+      child: Container(
+        color: const Color(0xFF0B0D10).withValues(alpha: 0.92),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.pause_circle_filled_rounded, color: accent, size: 64),
+              const SizedBox(height: 16),
+              const Text(
+                'ENTRENAMIENTO PAUSADO',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.4,
+                ),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: 200,
+                height: 52,
+                child: FilledButton.icon(
+                  onPressed: onResume,
+                  icon: const Icon(Icons.play_arrow_rounded),
+                  label: const Text('REANUDAR'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -370,12 +402,7 @@ class _TopBar extends StatelessWidget {
     final accent = Theme.of(context).colorScheme.primary;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        16,
-        12,
-        16,
-        8,
-      ),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
       child: Column(
         children: [
           Row(
@@ -383,9 +410,7 @@ class _TopBar extends StatelessWidget {
               IconButton(
                 onPressed: onPause,
                 icon: Icon(
-                  paused
-                      ? Icons.play_arrow_rounded
-                      : Icons.pause_rounded,
+                  paused ? Icons.play_arrow_rounded : Icons.pause_rounded,
                 ),
               ),
               Expanded(
@@ -420,9 +445,7 @@ class _TopBar extends StatelessWidget {
               value: progress.clamp(0.0, 1.0),
               minHeight: 5,
               backgroundColor: Colors.white10,
-              valueColor: AlwaysStoppedAnimation<Color>(
-                accent,
-              ),
+              valueColor: AlwaysStoppedAnimation<Color>(accent),
             ),
           ),
         ],
@@ -435,6 +458,7 @@ class _RepetitionExerciseView extends StatelessWidget {
   const _RepetitionExerciseView({
     super.key,
     required this.exerciseName,
+    required this.cue,
     required this.blockLabel,
     required this.round,
     required this.repetitions,
@@ -442,6 +466,7 @@ class _RepetitionExerciseView extends StatelessWidget {
   });
 
   final String exerciseName;
+  final String cue;
   final String blockLabel;
   final int round;
   final int repetitions;
@@ -452,15 +477,9 @@ class _RepetitionExerciseView extends StatelessWidget {
     final accent = Theme.of(context).colorScheme.primary;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        24,
-        24,
-        24,
-        20,
-      ),
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
       child: Column(
-        crossAxisAlignment:
-        CrossAxisAlignment.stretch,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _BlockBadge(label: blockLabel),
           const SizedBox(height: 20),
@@ -475,23 +494,17 @@ class _RepetitionExerciseView extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             'Ronda $round',
-            style: const TextStyle(
-              color: Colors.white54,
-              fontSize: 16,
-            ),
+            style: const TextStyle(color: Colors.white54, fontSize: 16),
           ),
+          const SizedBox(height: 14),
+          _CueBanner(cue: cue),
           const Spacer(),
           Container(
-            padding: const EdgeInsets.symmetric(
-              vertical: 36,
-              horizontal: 20,
-            ),
+            padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 20),
             decoration: BoxDecoration(
               color: const Color(0xFF15181D),
               borderRadius: BorderRadius.circular(28),
-              border: Border.all(
-                color: Colors.white10,
-              ),
+              border: Border.all(color: Colors.white10),
             ),
             child: Column(
               children: [
@@ -521,9 +534,7 @@ class _RepetitionExerciseView extends StatelessWidget {
             height: 58,
             child: FilledButton(
               onPressed: onComplete,
-              child: const Text(
-                'SERIE COMPLETADA',
-              ),
+              child: const Text('SERIE COMPLETADA'),
             ),
           ),
         ],
@@ -536,6 +547,7 @@ class _TimedExerciseView extends StatelessWidget {
   const _TimedExerciseView({
     super.key,
     required this.exerciseName,
+    required this.cue,
     required this.blockLabel,
     required this.round,
     required this.seconds,
@@ -543,6 +555,7 @@ class _TimedExerciseView extends StatelessWidget {
   });
 
   final String exerciseName;
+  final String cue;
   final String blockLabel;
   final int round;
   final int seconds;
@@ -553,15 +566,9 @@ class _TimedExerciseView extends StatelessWidget {
     final accent = Theme.of(context).colorScheme.primary;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        24,
-        24,
-        24,
-        20,
-      ),
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
       child: Column(
-        crossAxisAlignment:
-        CrossAxisAlignment.stretch,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _BlockBadge(label: blockLabel),
           const SizedBox(height: 20),
@@ -576,22 +583,17 @@ class _TimedExerciseView extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             'Ronda $round',
-            style: const TextStyle(
-              color: Colors.white54,
-              fontSize: 16,
-            ),
+            style: const TextStyle(color: Colors.white54, fontSize: 16),
           ),
+          const SizedBox(height: 14),
+          _CueBanner(cue: cue),
           const Spacer(),
           Container(
-            padding: const EdgeInsets.symmetric(
-              vertical: 34,
-            ),
+            padding: const EdgeInsets.symmetric(vertical: 34),
             decoration: BoxDecoration(
               color: const Color(0xFF15181D),
               borderRadius: BorderRadius.circular(28),
-              border: Border.all(
-                color: Colors.white10,
-              ),
+              border: Border.all(color: Colors.white10),
             ),
             child: Column(
               children: [
@@ -620,9 +622,7 @@ class _TimedExerciseView extends StatelessWidget {
             height: 58,
             child: OutlinedButton(
               onPressed: onComplete,
-              child: const Text(
-                'TERMINAR AHORA',
-              ),
+              child: const Text('TERMINAR AHORA'),
             ),
           ),
         ],
@@ -651,8 +651,7 @@ class _RestView extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
-          mainAxisAlignment:
-          MainAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Text(
               'RECUPERACIÓN',
@@ -696,9 +695,7 @@ class _RestView extends StatelessWidget {
               height: 56,
               child: FilledButton(
                 onPressed: onSkip,
-                child: const Text(
-                  'ESTOY LISTO',
-                ),
+                child: const Text('ESTOY LISTO'),
               ),
             ),
           ],
@@ -709,9 +706,7 @@ class _RestView extends StatelessWidget {
 }
 
 class _BlockBadge extends StatelessWidget {
-  const _BlockBadge({
-    required this.label,
-  });
+  const _BlockBadge({required this.label});
 
   final String label;
 
@@ -722,16 +717,11 @@ class _BlockBadge extends StatelessWidget {
     return Align(
       alignment: Alignment.centerLeft,
       child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 12,
-          vertical: 7,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
         decoration: BoxDecoration(
           color: accent.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(999),
-          border: Border.all(
-            color: accent.withValues(alpha: 0.35),
-          ),
+          border: Border.all(color: accent.withValues(alpha: 0.35)),
         ),
         child: Text(
           label,
@@ -747,218 +737,31 @@ class _BlockBadge extends StatelessWidget {
   }
 }
 
-class _WorkoutCompletePage extends StatelessWidget {
-  const _WorkoutCompletePage({
-    required this.profile,
-    required this.workout,
-    required this.elapsedSeconds,
-  });
+class _CueBanner extends StatelessWidget {
+  const _CueBanner({required this.cue});
 
-  final OnboardingState profile;
-  final GeneratedWorkout workout;
-  final int elapsedSeconds;
-
-  String _formatTime(int seconds) {
-    final minutes = seconds ~/ 60;
-    final secs = seconds % 60;
-
-    return '${minutes.toString().padLeft(2, '0')}:'
-        '${secs.toString().padLeft(2, '0')}';
-  }
-
-  Future<void> _openFeedback(BuildContext context) async {
-    final feedback = await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => WorkoutFeedbackPage(
-          workout: workout,
-        ),
-      ),
-    );
-
-    if (!context.mounted) {
-      return;
-    }
-
-    if (feedback != null) {
-      Navigator.of(context).pop(feedback);
-    }
-  }
+  final String cue;
 
   @override
   Widget build(BuildContext context) {
-    final accent = Theme.of(context).colorScheme.primary;
+    if (cue.isEmpty) return const SizedBox.shrink();
 
-    return Scaffold(
-      backgroundColor: const Color(0xFF0B0D10),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(
-            24,
-            30,
-            24,
-            32,
-          ),
-          children: [
-            Icon(
-              Icons.check_circle_rounded,
-              size: 82,
-              color: accent,
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              '¡Entrenamiento\ncompletado!',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 38,
-                height: 1.05,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              workout.title,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.white54,
-                fontSize: 16,
-              ),
-            ),
-            const SizedBox(height: 30),
-            Row(
-              children: [
-                Expanded(
-                  child: _StatCard(
-                    value: _formatTime(elapsedSeconds),
-                    label: 'TIEMPO',
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _StatCard(
-                    value: '${workout.exerciseCount}',
-                    label: 'EJERCICIOS',
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _StatCard(
-                    value: '${workout.steps.length}',
-                    label: 'BLOQUES',
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 34),
-            Container(
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                color: const Color(0xFF15181D),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: Colors.white10,
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.auto_awesome_rounded,
-                    color: accent,
-                    size: 28,
-                  ),
-                  const SizedBox(width: 14),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment:
-                      CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Un último paso',
-                          style: TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          'Cuéntanos cómo te ha resultado '
-                              'para adaptar tus próximos entrenamientos.',
-                          style: TextStyle(
-                            color: Colors.white54,
-                            height: 1.35,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              height: 58,
-              child: FilledButton(
-                onPressed: () => _openFeedback(context),
-                child: const Text(
-                  'CONTINUAR',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _StatCard extends StatelessWidget {
-  const _StatCard({
-    required this.value,
-    required this.label,
-  });
-
-  final String value;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        vertical: 18,
-        horizontal: 8,
-      ),
-      decoration: BoxDecoration(
-        color: const Color(0xFF15181D),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: Colors.white10,
-        ),
-      ),
-      child: Column(
-        children: [
-          Text(
-            value,
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Icon(Icons.info_outline_rounded, color: Colors.white38, size: 16),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            cue,
             style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w900,
+              color: Colors.white54,
+              fontSize: 13,
+              height: 1.3,
             ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.white38,
-              fontSize: 9,
-              letterSpacing: 1,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

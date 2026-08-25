@@ -23,6 +23,18 @@ class ProgressionDecision {
   final int value;
 }
 
+/// El Motor: reglas deterministas de progresión de carga.
+///
+/// Dada la dificultad percibida en la última sesión, decide si el
+/// usuario debe subir, mantener o bajar el estímulo del ejercicio,
+/// y si conviene cambiar de variante (más o menos exigente) dentro
+/// de la misma cadena de progresión/regresión.
+///
+/// Esto es intencionadamente "tonto": no interpreta tendencias ni
+/// historial, solo aplica una regla fija a partir del último dato.
+/// El análisis de tendencias a lo largo de varias sesiones vive en
+/// la capa de insights (fitness_engine/insights), que se apoya en
+/// este motor pero no lo sustituye.
 class ProgressionEngine {
   const ProgressionEngine();
 
@@ -50,10 +62,7 @@ class ProgressionEngine {
         return ProgressionDecision(
           action: ProgressionAction.maintain,
           exercise: exercise,
-          value: _clampValue(
-            exercise,
-            currentValue,
-          ),
+          value: _clampValue(exercise, currentValue),
         );
 
       case WorkoutDifficulty.hard:
@@ -75,10 +84,7 @@ class ProgressionEngine {
     required int currentValue,
     required int amount,
   }) {
-    final maximum = exercise.isTimed
-        ? 90
-        : exercise.maxRepetitions;
-
+    final maximum = exercise.isTimed ? 90 : exercise.maxRepetitions;
     final nextValue = currentValue + amount;
 
     if (nextValue <= maximum) {
@@ -112,20 +118,14 @@ class ProgressionEngine {
     required Exercise exercise,
     required int currentValue,
   }) {
-    final minimum = exercise.isTimed
-        ? 10
-        : exercise.minRepetitions;
-
+    final minimum = exercise.isTimed ? 10 : exercise.minRepetitions;
     final reduction = exercise.isTimed ? 5 : 2;
-
     final nextValue = currentValue - reduction;
 
     return ProgressionDecision(
       action: ProgressionAction.maintain,
       exercise: exercise,
-      value: nextValue < minimum
-          ? minimum
-          : nextValue,
+      value: nextValue < minimum ? minimum : nextValue,
     );
   }
 
@@ -145,42 +145,25 @@ class ProgressionEngine {
       );
     }
 
-    final minimum = exercise.isTimed
-        ? 10
-        : exercise.minRepetitions;
-
+    final minimum = exercise.isTimed ? 10 : exercise.minRepetitions;
     final nextValue = (currentValue * 0.75).round();
 
     return ProgressionDecision(
       action: ProgressionAction.regress,
       exercise: exercise,
-      value: nextValue < minimum
-          ? minimum
-          : nextValue,
+      value: nextValue < minimum ? minimum : nextValue,
     );
   }
 
-  Exercise? _findProgression(
-      Exercise exercise,
-      ) {
+  Exercise? _findProgression(Exercise exercise) {
     final id = exercise.progressionId;
-
-    if (id == null) {
-      return null;
-    }
-
+    if (id == null) return null;
     return _findExercise(id);
   }
 
-  Exercise? _findRegression(
-      Exercise exercise,
-      ) {
+  Exercise? _findRegression(Exercise exercise) {
     final id = exercise.regressionId;
-
-    if (id == null) {
-      return null;
-    }
-
+    if (id == null) return null;
     return _findExercise(id);
   }
 
@@ -190,34 +173,18 @@ class ProgressionEngine {
         return candidate;
       }
     }
-
     return null;
   }
 
-  int _clampValue(
-      Exercise exercise,
-      int value,
-      ) {
+  int _clampValue(Exercise exercise, int value) {
     if (exercise.isTimed) {
-      if (value < 10) {
-        return 10;
-      }
-
-      if (value > 90) {
-        return 90;
-      }
-
+      if (value < 10) return 10;
+      if (value > 90) return 90;
       return value;
     }
 
-    if (value < exercise.minRepetitions) {
-      return exercise.minRepetitions;
-    }
-
-    if (value > exercise.maxRepetitions) {
-      return exercise.maxRepetitions;
-    }
-
+    if (value < exercise.minRepetitions) return exercise.minRepetitions;
+    if (value > exercise.maxRepetitions) return exercise.maxRepetitions;
     return value;
   }
 }
