@@ -5,6 +5,44 @@ import '../../fitness_engine/models/workout_feedback.dart';
 import '../../fitness_engine/models/workout_result.dart';
 import 'workout_generator.dart';
 
+const _feedbackOptions = [
+  (
+    difficulty: WorkoutDifficulty.veryEasy,
+    emoji: '😌',
+    title: 'Muy fácil',
+    shortTitle: 'Muy fácil',
+    subtitle: 'Podría haber hecho bastante más',
+  ),
+  (
+    difficulty: WorkoutDifficulty.easy,
+    emoji: '🙂',
+    title: 'Fácil',
+    shortTitle: 'Fácil',
+    subtitle: 'Me quedaban algunas fuerzas',
+  ),
+  (
+    difficulty: WorkoutDifficulty.good,
+    emoji: '😐',
+    title: 'Bien',
+    shortTitle: 'Bien',
+    subtitle: 'La dificultad fue adecuada',
+  ),
+  (
+    difficulty: WorkoutDifficulty.hard,
+    emoji: '😮',
+    title: 'Difícil',
+    shortTitle: 'Difícil',
+    subtitle: 'Me costó bastante',
+  ),
+  (
+    difficulty: WorkoutDifficulty.veryHard,
+    emoji: '🥵',
+    title: 'Demasiado difícil',
+    shortTitle: 'Muy difícil',
+    subtitle: 'Me costó terminarlo',
+  ),
+];
+
 class WorkoutFeedbackPage extends StatefulWidget {
   const WorkoutFeedbackPage({
     super.key,
@@ -23,46 +61,7 @@ class WorkoutFeedbackPage extends StatefulWidget {
 
 class _WorkoutFeedbackPageState extends State<WorkoutFeedbackPage> {
   WorkoutDifficulty? overallDifficulty;
-
   final Map<String, WorkoutDifficulty> exerciseFeedback = {};
-
-  static const options = [
-    (
-      difficulty: WorkoutDifficulty.veryEasy,
-      emoji: '😌',
-      title: 'Muy fácil',
-      shortTitle: 'Muy fácil',
-      subtitle: 'Podría haber hecho bastante más',
-    ),
-    (
-      difficulty: WorkoutDifficulty.easy,
-      emoji: '🙂',
-      title: 'Fácil',
-      shortTitle: 'Fácil',
-      subtitle: 'Me quedaban algunas fuerzas',
-    ),
-    (
-      difficulty: WorkoutDifficulty.good,
-      emoji: '😐',
-      title: 'Bien',
-      shortTitle: 'Bien',
-      subtitle: 'La dificultad fue adecuada',
-    ),
-    (
-      difficulty: WorkoutDifficulty.hard,
-      emoji: '😮',
-      title: 'Difícil',
-      shortTitle: 'Difícil',
-      subtitle: 'Me costó bastante',
-    ),
-    (
-      difficulty: WorkoutDifficulty.veryHard,
-      emoji: '🥵',
-      title: 'Demasiado difícil',
-      shortTitle: 'Muy difícil',
-      subtitle: 'Me costó terminarlo',
-    ),
-  ];
 
   List<_FeedbackExercise> get mainExercises {
     final seen = <String>{};
@@ -95,10 +94,14 @@ class _WorkoutFeedbackPageState extends State<WorkoutFeedbackPage> {
     return '${minutes.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
   }
 
-  bool get allExerciseFeedbackSelected =>
-      mainExercises.every((item) => exerciseFeedback.containsKey(item.exercise.id));
+  bool get allExerciseFeedbackSelected => mainExercises.every(
+        (item) => exerciseFeedback.containsKey(item.exercise.id),
+      );
 
-  void _selectExerciseFeedback(String exerciseId, WorkoutDifficulty difficulty) {
+  void _selectExerciseFeedback(
+    String exerciseId,
+    WorkoutDifficulty difficulty,
+  ) {
     setState(() {
       exerciseFeedback[exerciseId] = difficulty;
     });
@@ -168,19 +171,13 @@ class _WorkoutFeedbackPageState extends State<WorkoutFeedbackPage> {
             const Text(
               '¡Buen trabajo!',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 34,
-                fontWeight: FontWeight.w900,
-              ),
+              style: TextStyle(fontSize: 34, fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 8),
             Text(
               widget.workout.title,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.white54,
-                fontSize: 15,
-              ),
+              style: const TextStyle(color: Colors.white54, fontSize: 15),
             ),
             const SizedBox(height: 24),
             Row(
@@ -203,22 +200,15 @@ class _WorkoutFeedbackPageState extends State<WorkoutFeedbackPage> {
             const SizedBox(height: 30),
             const Text(
               '¿Cómo te ha resultado?',
-              style: TextStyle(
-                fontSize: 23,
-                fontWeight: FontWeight.w900,
-              ),
+              style: TextStyle(fontSize: 23, fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 7),
             const Text(
               'Primero valora la sesión completa. Después podrás valorar cada ejercicio por separado para que la progresión sea más precisa.',
-              style: TextStyle(
-                color: Colors.white54,
-                fontSize: 14,
-                height: 1.4,
-              ),
+              style: TextStyle(color: Colors.white54, fontSize: 14, height: 1.4),
             ),
             const SizedBox(height: 18),
-            ...options.map(
+            ..._feedbackOptions.map(
               (option) => Padding(
                 padding: const EdgeInsets.only(bottom: 10),
                 child: _OverallOption(
@@ -245,10 +235,7 @@ class _WorkoutFeedbackPageState extends State<WorkoutFeedbackPage> {
               const SizedBox(height: 6),
               const Text(
                 'Esto es lo que usará el motor para decidir tu siguiente carga.',
-                style: TextStyle(
-                  color: Colors.white54,
-                  fontSize: 13,
-                ),
+                style: TextStyle(color: Colors.white54, fontSize: 13),
               ),
               const SizedBox(height: 14),
               ...exercises.map(
@@ -273,10 +260,7 @@ class _WorkoutFeedbackPageState extends State<WorkoutFeedbackPage> {
                 child: Text(
                   'Selecciona la dificultad general y el feedback de todos los ejercicios para continuar.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Colors.white38,
-                    fontSize: 12,
-                  ),
+                  style: TextStyle(color: Colors.white38, fontSize: 12),
                 ),
               ),
             SizedBox(
@@ -286,10 +270,7 @@ class _WorkoutFeedbackPageState extends State<WorkoutFeedbackPage> {
                 onPressed: canSave ? _save : null,
                 child: const Text(
                   'GUARDAR Y CONTINUAR',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1,
-                  ),
+                  style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1),
                 ),
               ),
             ),
@@ -340,9 +321,7 @@ class _OverallOption extends StatelessWidget {
         duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: selected
-              ? accent.withValues(alpha: 0.14)
-              : const Color(0xFF15181D),
+          color: selected ? accent.withValues(alpha: 0.14) : const Color(0xFF15181D),
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: selected ? accent : Colors.white10,
@@ -359,26 +338,18 @@ class _OverallOption extends StatelessWidget {
                 children: [
                   Text(
                     option.title,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                    ),
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
                   ),
                   const SizedBox(height: 3),
                   Text(
                     option.subtitle,
-                    style: const TextStyle(
-                      color: Colors.white54,
-                      fontSize: 13,
-                    ),
+                    style: const TextStyle(color: Colors.white54, fontSize: 13),
                   ),
                 ],
               ),
             ),
             Icon(
-              selected
-                  ? Icons.check_circle_rounded
-                  : Icons.circle_outlined,
+              selected ? Icons.check_circle_rounded : Icons.circle_outlined,
               color: selected ? accent : Colors.white30,
             ),
           ],
@@ -401,9 +372,7 @@ class _ExerciseFeedbackCard extends StatelessWidget {
   final Color accent;
   final ValueChanged<WorkoutDifficulty> onSelected;
 
-  String _valueLabel() {
-    return item.timed ? '${item.value} s' : '${item.value} reps';
-  }
+  String _valueLabel() => item.timed ? '${item.value} s' : '${item.value} reps';
 
   @override
   Widget build(BuildContext context) {
@@ -424,19 +393,12 @@ class _ExerciseFeedbackCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   item.exercise.name,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w900,
-                  ),
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
                 ),
               ),
               Text(
                 _valueLabel(),
-                style: TextStyle(
-                  color: accent,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w900,
-                ),
+                style: TextStyle(color: accent, fontSize: 12, fontWeight: FontWeight.w900),
               ),
             ],
           ),
@@ -445,7 +407,7 @@ class _ExerciseFeedbackCard extends StatelessWidget {
             spacing: 7,
             runSpacing: 7,
             children: [
-              for (final option in options)
+              for (final option in _feedbackOptions)
                 _DifficultyChip(
                   emoji: option.emoji,
                   label: option.shortTitle,
@@ -487,9 +449,7 @@ class _DifficultyChip extends StatelessWidget {
         decoration: BoxDecoration(
           color: selected ? accent.withValues(alpha: 0.16) : Colors.white.withValues(alpha: 0.035),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: selected ? accent : Colors.white10,
-          ),
+          border: Border.all(color: selected ? accent : Colors.white10),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -530,10 +490,7 @@ class _StatCard extends StatelessWidget {
         children: [
           Text(
             value,
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w900,
-            ),
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 4),
           Text(
