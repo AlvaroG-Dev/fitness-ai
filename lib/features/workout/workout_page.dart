@@ -51,9 +51,6 @@ class _WorkoutPageState extends State<WorkoutPage> {
     };
   }
 
-  /// Aviso de recuperación: si la última sesión fue hace muy poco,
-  /// lo mostramos antes de empezar. Esta señal la produce la capa
-  /// de insights a partir del historial, no el motor de generación.
   Insight? get _recoveryInsight {
     final hours = widget.progressRepository.hoursSinceLastSession;
     if (hours == null || hours >= 16) return null;
@@ -163,11 +160,9 @@ class _WorkoutPageState extends State<WorkoutPage> {
                     (block) => Padding(
                       padding: const EdgeInsets.only(bottom: 12),
                       child: _BlockCard(
+                        block: block,
                         title: _blockName(block.type),
                         icon: _blockIcon(block.type),
-                        rounds: block.rounds,
-                        exercises: block.steps.length,
-                        rest: block.restBetweenRounds,
                         accent: accent,
                       ),
                     ),
@@ -289,33 +284,61 @@ class _SummaryItem extends StatelessWidget {
 
 class _BlockCard extends StatelessWidget {
   const _BlockCard({
+    required this.block,
     required this.title,
     required this.icon,
-    required this.rounds,
-    required this.exercises,
-    required this.rest,
     required this.accent,
   });
 
+  final WorkoutBlock block;
   final String title;
   final IconData icon;
-  final int rounds;
-  final int exercises;
-  final int rest;
   final Color accent;
+
+  String _stepValue(WorkoutStep step) {
+    if (step.type == WorkoutStepType.rest) {
+      return '${step.seconds ?? 0} s';
+    }
+
+    if (step.type == WorkoutStepType.timed) {
+      return '${step.seconds ?? 0} s';
+    }
+
+    return '${step.repetitions ?? 0} reps';
+  }
+
+  String _stepName(WorkoutStep step) {
+    if (step.type == WorkoutStepType.rest) return 'Descanso';
+    return step.exercise?.name ?? 'Ejercicio';
+  }
+
+  IconData _stepIcon(WorkoutStep step) {
+    if (step.type == WorkoutStepType.rest) {
+      return Icons.hourglass_bottom_rounded;
+    }
+    if (step.type == WorkoutStepType.timed) {
+      return Icons.timer_outlined;
+    }
+    return Icons.repeat_rounded;
+  }
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(17),
       decoration: BoxDecoration(
         color: const Color(0xFF15181D),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: Colors.white10),
       ),
-      child: Row(
-        children: [
-          Container(
+      child: Theme(
+        data: Theme.of(context).copyWith(
+          dividerColor: Colors.transparent,
+          splashColor: accent.withValues(alpha: 0.06),
+        ),
+        child: ExpansionTile(
+          tilePadding: const EdgeInsets.fromLTRB(17, 6, 14, 6),
+          childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+          leading: Container(
             width: 46,
             height: 46,
             decoration: BoxDecoration(
@@ -324,39 +347,100 @@ class _BlockCard extends StatelessWidget {
             ),
             child: Icon(icon, color: accent),
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  '$exercises ejercicios · '
-                  '$rounds ${rounds == 1 ? 'ronda' : 'rondas'}',
-                  style: const TextStyle(color: Colors.white54, fontSize: 13),
-                ),
-                if (rest > 0) ...[
-                  const SizedBox(height: 3),
-                  Text(
-                    '$rest s entre rondas',
-                    style: const TextStyle(
-                      color: Colors.white38,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ],
+          title: Text(
+            title,
+            style: const TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
             ),
           ),
-          const Icon(Icons.chevron_right_rounded, color: Colors.white38),
-        ],
+          subtitle: Padding(
+            padding: const EdgeInsets.only(top: 5),
+            child: Text(
+              '${block.steps.length} ejercicios · '
+              '${block.rounds} ${block.rounds == 1 ? 'ronda' : 'rondas'}'
+              '${block.restBetweenRounds > 0 ? ' · ${block.restBetweenRounds} s descanso' : ''}',
+              style: const TextStyle(
+                color: Colors.white54,
+                fontSize: 12,
+              ),
+            ),
+          ),
+          children: [
+            for (var index = 0; index < block.steps.length; index++)
+              Padding(
+                padding: EdgeInsets.only(
+                  top: index == 0 ? 4 : 7,
+                ),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 11,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0F1115),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        _stepIcon(block.steps[index]),
+                        color: accent,
+                        size: 19,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _stepName(block.steps[index]),
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            if (block.steps[index].exercise?.cue != null) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                block.steps[index].exercise!.cue,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Colors.white38,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        _stepValue(block.steps[index]),
+                        style: TextStyle(
+                          color: accent,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            if (block.rounds > 1)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Text(
+                  'Este bloque se repite ${block.rounds} veces.',
+                  style: const TextStyle(
+                    color: Colors.white38,
+                    fontSize: 11,
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
