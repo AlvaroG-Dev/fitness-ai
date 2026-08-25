@@ -47,11 +47,13 @@ class ProgressionEngine {
     required WorkoutDifficulty difficulty,
     int consecutiveSessions = 1,
   }) {
+    final streak = consecutiveSessions.clamp(1, 5).toInt();
+
     return _decide(
       exercise: exercise,
       currentValue: currentValue,
       difficulty: difficulty,
-      consecutiveSessions: consecutiveSessions.clamp(1, 5),
+      consecutiveSessions: streak,
     );
   }
 
