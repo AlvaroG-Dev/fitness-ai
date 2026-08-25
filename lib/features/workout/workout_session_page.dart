@@ -36,6 +36,7 @@ class _WorkoutSessionPageState extends State<WorkoutSessionPage> {
   bool finished = false;
 
   final List<ExerciseResult> _exerciseResults = [];
+  final List<ExerciseResult> completedExercises = [];
 
   int get totalSteps => widget.workout.steps.length;
 
@@ -159,31 +160,31 @@ class _WorkoutSessionPageState extends State<WorkoutSessionPage> {
 
   void _completeRepetitionStep() {
     final step = current;
-    if (step == null || step.type != WorkoutStepType.reps) return;
+
+    if (step == null ||
+        step.type != WorkoutStepType.reps) {
+      return;
+    }
+
+    final exercise = step.exercise;
+
+    if (exercise != null) {
+      completedExercises.add(
+        ExerciseResult(
+          exerciseId: exercise.id,
+          value: step.repetitions ?? 0,
+          feedback: WorkoutDifficulty.good,
+        ),
+      );
+    }
+
     _completeCurrentStep();
   }
 
-  void _onFeedbackCompleted(WorkoutFeedback feedback) {
-    final results = [
-      for (final result in _exerciseResults)
-        ExerciseResult(
-          exerciseId: result.exerciseId,
-          value: result.value,
-          feedback: feedback.difficulty,
-        ),
-    ];
+  void _onFeedbackCompleted(WorkoutResult result) {
+    widget.progressRepository.saveWorkout(result);
 
-    widget.progressRepository.saveWorkout(
-      WorkoutResult(
-        workoutTitle: widget.workout.title,
-        completedAt: DateTime.now(),
-        elapsedSeconds: elapsedSeconds,
-        feedback: feedback.difficulty,
-        exercises: results,
-      ),
-    );
-
-    Navigator.of(context).pop(feedback);
+    Navigator.of(context).pop(result);
   }
 
   String _blockTypeLabel(WorkoutStep step) {

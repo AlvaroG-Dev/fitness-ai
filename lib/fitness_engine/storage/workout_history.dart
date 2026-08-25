@@ -1,46 +1,118 @@
-import 'package:flutter/foundation.dart';
+import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../models/workout_feedback.dart';
 import '../models/workout_result.dart';
 
-/// Almacén único del historial de entrenamientos completados.
+/// Almacén persistente del historial de entrenamientos.
 ///
-/// Es un [ChangeNotifier] para que la UI (progreso, avisos de
-/// recuperación...) pueda reaccionar automáticamente cuando se
-/// guarda una sesión nueva.
+/// El historial se guarda localmente en el dispositivo mediante
+/// SharedPreferences.
 ///
-/// NOTA: por ahora vive solo en memoria (se pierde al cerrar la
-/// app). Cuando quieras persistencia real, este es el único sitio
-/// que hay que tocar: envolver `_results` con algo como
-/// `shared_preferences` o una base de datos local (por ejemplo
-/// `sqflite` o `drift`), serializando/deserializando [WorkoutResult].
+/// Esto permite que el motor recuerde el progreso aunque la aplicación
+/// se cierre completamente.
 class WorkoutHistoryStore extends ChangeNotifier {
   WorkoutHistoryStore._internal();
 
   static final WorkoutHistoryStore instance =
-      WorkoutHistoryStore._internal();
+  WorkoutHistoryStore._internal();
+
+  static const String _storageKey = 'fitness_ai_workout_history_v1';
 
   final List<WorkoutResult> _results = [];
 
-  List<WorkoutResult> get all => List.unmodifiable(_results.reversed);
+  bool _initialized = false;
+
+  bool get isInitialized => _initialized;
+
+  List<WorkoutResult> get all =>
+      List.unmodifiable(_results.reversed);
 
   int get sessionCount => _results.length;
 
+  WorkoutResult? get latest =>
+      _results.isEmpty ? null : _results.last;
+
   int get totalMinutes {
     var totalSeconds = 0;
+
     for (final result in _results) {
       totalSeconds += result.elapsedSeconds;
     }
+
     return totalSeconds ~/ 60;
   }
 
-  WorkoutResult? get latest => _results.isEmpty ? null : _results.last;
+  /// Carga el historial guardado en el dispositivo.
+  ///
+  /// Debe llamarse una vez al arrancar la aplicación.
+  Future<void> initialize() async {
+    if (_initialized) {
+      return;
+    }
 
-  void add(WorkoutResult result) {
-    _results.add(result);
+    final preferences =
+    await SharedPreferences.getInstance();
+
+    final raw = preferences.getString(_storageKey);
+
+    if (raw != null && raw.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(raw);
+
+        if (decoded is List) {
+          _results
+            ..clear()
+            ..addAll(
+              decoded
+                  .whereType<Map>()
+                  .map(
+                    (item) => _workoutResultFromJson(
+                  Map<String, dynamic>.from(item),
+                ),
+              ),
+            );
+        }
+      } catch (_) {
+        // Si los datos están corruptos, no dejamos que la app falle.
+        _results.clear();
+      }
+    }
+
+    _initialized = true;
     notifyListeners();
   }
 
-  List<ExerciseResult> resultsForExercise(String exerciseId) {
+  /// Guarda un entrenamiento completado.
+  Future<void> add(WorkoutResult result) async {
+    _results.add(result);
+
+    await _persist();
+
+    notifyListeners();
+  }
+
+  Future<void> _persist() async {
+    final preferences =
+    await SharedPreferences.getInstance();
+
+    final encoded = jsonEncode(
+      _results
+          .map(_workoutResultToJson)
+          .toList(),
+    );
+
+    await preferences.setString(
+      _storageKey,
+      encoded,
+    );
+  }
+
+  List<ExerciseResult> resultsForExercise(
+      String exerciseId,
+      ) {
     final results = <ExerciseResult>[];
 
     for (final workout in _results) {
@@ -54,50 +126,165 @@ class WorkoutHistoryStore extends ChangeNotifier {
     return List.unmodifiable(results);
   }
 
-  ExerciseResult? latestResultForExercise(String exerciseId) {
-    final results = resultsForExercise(exerciseId);
-    return results.isEmpty ? null : results.last;
+  ExerciseResult? latestResultForExercise(
+      String exerciseId,
+      ) {
+    final results =
+    resultsForExercise(exerciseId);
+
+    return results.isEmpty
+        ? null
+        : results.last;
   }
 
-  /// Racha de días consecutivos (incluyendo hoy o ayer) con al
-  /// menos una sesión completada.
+  /// Racha de días consecutivos.
   int get streak {
-    if (_results.isEmpty) return 0;
+    if (_results.isEmpty) {
+      return 0;
+    }
 
     final days = _results
-        .map((r) => DateTime(
-              r.completedAt.year,
-              r.completedAt.month,
-              r.completedAt.day,
-            ))
+        .map(
+          (result) => DateTime(
+        result.completedAt.year,
+        result.completedAt.month,
+        result.completedAt.day,
+      ),
+    )
         .toSet();
 
     var cursor = DateTime.now();
-    cursor = DateTime(cursor.year, cursor.month, cursor.day);
+
+    cursor = DateTime(
+      cursor.year,
+      cursor.month,
+      cursor.day,
+    );
 
     if (!days.contains(cursor)) {
-      cursor = cursor.subtract(const Duration(days: 1));
+      cursor =
+          cursor.subtract(const Duration(days: 1));
     }
 
     var count = 0;
+
     while (days.contains(cursor)) {
       count++;
-      cursor = cursor.subtract(const Duration(days: 1));
+
+      cursor =
+          cursor.subtract(const Duration(days: 1));
     }
 
     return count;
   }
 
-  /// Horas transcurridas desde el fin de la última sesión.
-  /// Útil para avisos de recuperación (ver [fitness_engine/insights]).
+  /// Horas desde el último entrenamiento.
   double? get hoursSinceLastSession {
-    if (latest == null) return null;
-    return DateTime.now().difference(latest!.completedAt).inMinutes / 60;
+    if (latest == null) {
+      return null;
+    }
+
+    return DateTime.now()
+        .difference(latest!.completedAt)
+        .inMinutes /
+        60;
   }
 
   @visibleForTesting
-  void clear() {
+  Future<void> clear() async {
     _results.clear();
+
+    final preferences =
+    await SharedPreferences.getInstance();
+
+    await preferences.remove(_storageKey);
+
     notifyListeners();
   }
+}
+
+/// ------------------------------------------------------------
+/// SERIALIZACIÓN
+/// ------------------------------------------------------------
+
+Map<String, dynamic> _workoutResultToJson(
+    WorkoutResult result,
+    ) {
+  return {
+    'workoutTitle': result.workoutTitle,
+    'completedAt':
+    result.completedAt.toIso8601String(),
+    'elapsedSeconds': result.elapsedSeconds,
+    'feedback': result.feedback.name,
+    'exercises': result.exercises
+        .map(
+          (exercise) => {
+        'exerciseId': exercise.exerciseId,
+        'value': exercise.value,
+        'feedback': exercise.feedback.name,
+      },
+    )
+        .toList(),
+  };
+}
+
+WorkoutResult _workoutResultFromJson(
+    Map<String, dynamic> json,
+    ) {
+  final exercisesRaw =
+  json['exercises'];
+
+  final exercises = <ExerciseResult>[];
+
+  if (exercisesRaw is List) {
+    for (final raw in exercisesRaw) {
+      if (raw is! Map) {
+        continue;
+      }
+
+      final map =
+      Map<String, dynamic>.from(raw);
+
+      exercises.add(
+        ExerciseResult(
+          exerciseId:
+          map['exerciseId'] as String,
+          value:
+          (map['value'] as num).toInt(),
+          feedback:
+          _difficultyFromString(
+            map['feedback'] as String,
+          ),
+        ),
+      );
+    }
+  }
+
+  return WorkoutResult(
+    workoutTitle:
+    json['workoutTitle'] as String,
+    completedAt:
+    DateTime.parse(
+      json['completedAt'] as String,
+    ),
+    elapsedSeconds:
+    (json['elapsedSeconds'] as num)
+        .toInt(),
+    feedback:
+    _difficultyFromString(
+      json['feedback'] as String,
+    ),
+    exercises: exercises,
+  );
+}
+
+WorkoutDifficulty _difficultyFromString(
+    String value,
+    ) {
+  return WorkoutDifficulty.values.firstWhere(
+        (difficulty) =>
+    difficulty.name == value,
+    orElse: () =>
+    WorkoutDifficulty.good,
+  );
 }

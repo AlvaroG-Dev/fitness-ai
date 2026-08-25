@@ -1,7 +1,6 @@
 import '../data/exercise_catalog.dart';
 import '../models/exercise.dart';
 import '../models/workout_feedback.dart';
-import '../models/workout_result.dart';
 import '../storage/workout_history.dart';
 import 'insight.dart';
 

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../fitness_engine/models/workout_feedback.dart';
+import '../../fitness_engine/models/workout_result.dart';
+import '../../fitness_engine/storage/progress_repository.dart';
 import 'workout_generator.dart';
 
 class WorkoutFeedbackPage extends StatefulWidget {
@@ -13,7 +15,7 @@ class WorkoutFeedbackPage extends StatefulWidget {
 
   final int elapsedSeconds;
   final GeneratedWorkout workout;
-  final ValueChanged<WorkoutFeedback> onCompleted;
+  final ValueChanged<WorkoutResult> onCompleted;
 
   @override
   State<WorkoutFeedbackPage> createState() =>
@@ -258,12 +260,59 @@ class _WorkoutFeedbackPageState
               child: FilledButton(
                 onPressed: selected == null
                     ? null
-                    : () {
-                  widget.onCompleted(
-                    WorkoutFeedback(
-                      difficulty: selected!,
-                    ),
+                    : () async {
+                  final feedback = selected!;
+
+                  final exerciseResults =
+                  <ExerciseResult>[];
+
+                  for (final step
+                  in widget.workout.steps) {
+                    if (step.exercise == null) {
+                      continue;
+                    }
+
+                    final exercise =
+                    step.exercise!;
+
+                    final value =
+                    step.type ==
+                        WorkoutStepType.timed
+                        ? step.seconds ?? 0
+                        : step.repetitions ?? 0;
+
+                    exerciseResults.add(
+                      ExerciseResult(
+                        exerciseId: exercise.id,
+                        value: value,
+                        feedback: feedback,
+                      ),
+                    );
+                  }
+
+                  final result = WorkoutResult(
+                    workoutTitle:
+                    widget.workout.title,
+                    completedAt: DateTime.now(),
+                    elapsedSeconds:
+                    widget.elapsedSeconds,
+                    feedback: feedback,
+                    exercises:
+                    exerciseResults,
                   );
+
+                  final repository =
+                  ProgressRepository();
+
+                  await repository.saveWorkout(
+                    result,
+                  );
+
+                  if (!context.mounted) {
+                    return;
+                  }
+
+                  widget.onCompleted(result);
                 },
                 child: const Text(
                   'GUARDAR Y CONTINUAR',

@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
 
 import 'app/app.dart';
+import 'fitness_engine/storage/workout_history.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const FitnessAiApp());
+
+  await WorkoutHistoryStore.instance.initialize();
+
+  runApp(
+    const FitnessAiApp(),
+  );
 }

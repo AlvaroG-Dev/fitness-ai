@@ -18,8 +18,21 @@ class ExerciseProgress {
   final ProgressionAction action;
 }
 
-/// Traduce resultados de sesiones pasadas en la próxima carga
-/// objetivo por ejercicio, apoyándose en el [ProgressionEngine].
+/// Convierte el resultado de una sesión en la carga recomendada
+/// para la siguiente sesión.
+///
+/// Flujo:
+///
+/// WorkoutResult
+///      ↓
+/// ProgressionService
+///      ↓
+/// ProgressionEngine
+///      ↓
+/// ExerciseProgress
+///
+/// El servicio no decide por sí mismo si progresar o regresar.
+/// Esa responsabilidad pertenece exclusivamente al ProgressionEngine.
 class ProgressionService {
   const ProgressionService({
     this.engine = const ProgressionEngine(),
@@ -27,15 +40,9 @@ class ProgressionService {
 
   final ProgressionEngine engine;
 
+  /// Calcula la siguiente carga para un ejercicio realizado.
   ExerciseProgress? calculateNext(ExerciseResult result) {
-    Exercise? exercise;
-
-    for (final candidate in exerciseCatalog) {
-      if (candidate.id == result.exerciseId) {
-        exercise = candidate;
-        break;
-      }
-    }
+    final exercise = _findExercise(result.exerciseId);
 
     if (exercise == null) {
       return null;
@@ -55,17 +62,31 @@ class ProgressionService {
     );
   }
 
-  List<ExerciseProgress> calculateWorkoutProgress(WorkoutResult workout) {
-    final result = <ExerciseProgress>[];
+  /// Calcula la progresión de todos los ejercicios realizados
+  /// durante una sesión.
+  List<ExerciseProgress> calculateWorkoutProgress(
+      WorkoutResult workout,
+      ) {
+    final progress = <ExerciseProgress>[];
 
-    for (final exercise in workout.exercises) {
-      final progress = calculateNext(exercise);
+    for (final exerciseResult in workout.exercises) {
+      final next = calculateNext(exerciseResult);
 
-      if (progress != null) {
-        result.add(progress);
+      if (next != null) {
+        progress.add(next);
       }
     }
 
-    return result;
+    return progress;
+  }
+
+  Exercise? _findExercise(String id) {
+    for (final exercise in exerciseCatalog) {
+      if (exercise.id == id) {
+        return exercise;
+      }
+    }
+
+    return null;
   }
 }
