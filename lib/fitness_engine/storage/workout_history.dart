@@ -6,30 +6,25 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/workout_feedback.dart';
 import '../models/workout_result.dart';
 
-/// Almacén del historial de entrenamientos.
+/// Almacén persistente del historial de entrenamientos.
 ///
 /// En producción utiliza SharedPreferences.
-/// En tests puede utilizarse un almacenamiento en memoria mediante
-/// [WorkoutHistoryStore.inMemory].
+///
+/// Para tests existe [WorkoutHistoryStore.forTesting], que utiliza
+/// únicamente memoria y no requiere ningún plugin de Flutter.
 class WorkoutHistoryStore extends ChangeNotifier {
-  /// Constructor normal para producción.
   WorkoutHistoryStore._internal({
-    SharedPreferences? preferences,
     bool inMemory = false,
-  })  : _preferences = preferences,
-        _inMemory = inMemory;
+  }) : _inMemory = inMemory;
 
-  /// Instancia global utilizada por la aplicación.
   static final WorkoutHistoryStore instance =
   WorkoutHistoryStore._internal();
 
-  /// Crea un almacén completamente independiente en memoria.
+  /// Crea un almacén aislado para tests.
   ///
-  /// No utiliza plugins ni SharedPreferences.
-  /// Está pensado principalmente para tests y para poder crear
-  /// repositorios aislados.
+  /// No utiliza SharedPreferences ni plugins nativos.
   @visibleForTesting
-  factory WorkoutHistoryStore.inMemory() {
+  factory WorkoutHistoryStore.forTesting() {
     return WorkoutHistoryStore._internal(
       inMemory: true,
     );
@@ -41,8 +36,6 @@ class WorkoutHistoryStore extends ChangeNotifier {
   final List<WorkoutResult> _results = [];
 
   final bool _inMemory;
-
-  SharedPreferences? _preferences;
 
   bool _initialized = false;
 
@@ -66,25 +59,23 @@ class WorkoutHistoryStore extends ChangeNotifier {
     return totalSeconds ~/ 60;
   }
 
-  /// Carga el historial.
-  ///
-  /// En memoria simplemente inicializa el almacén.
+  /// Carga el historial guardado en el dispositivo.
   Future<void> initialize() async {
     if (_initialized) {
       return;
     }
 
+    // Los almacenes de test no tienen almacenamiento persistente.
     if (_inMemory) {
       _initialized = true;
       notifyListeners();
       return;
     }
 
-    _preferences ??=
+    final preferences =
     await SharedPreferences.getInstance();
 
-    final raw =
-    _preferences!.getString(_storageKey);
+    final raw = preferences.getString(_storageKey);
 
     if (raw != null && raw.isNotEmpty) {
       try {
@@ -97,15 +88,13 @@ class WorkoutHistoryStore extends ChangeNotifier {
               decoded
                   .whereType<Map>()
                   .map(
-                    (item) =>
-                    _workoutResultFromJson(
-                      Map<String, dynamic>.from(item),
-                    ),
+                    (item) => _workoutResultFromJson(
+                  Map<String, dynamic>.from(item),
+                ),
               ),
             );
         }
       } catch (_) {
-        // Datos corruptos: empezamos con historial vacío.
         _results.clear();
       }
     }
@@ -115,22 +104,18 @@ class WorkoutHistoryStore extends ChangeNotifier {
   }
 
   /// Guarda un entrenamiento completado.
-  Future<void> add(
-      WorkoutResult result,
-      ) async {
+  Future<void> add(WorkoutResult result) async {
     _results.add(result);
 
-    await _persist();
+    if (!_inMemory) {
+      await _persist();
+    }
 
     notifyListeners();
   }
 
   Future<void> _persist() async {
-    if (_inMemory) {
-      return;
-    }
-
-    _preferences ??=
+    final preferences =
     await SharedPreferences.getInstance();
 
     final encoded = jsonEncode(
@@ -139,7 +124,7 @@ class WorkoutHistoryStore extends ChangeNotifier {
           .toList(),
     );
 
-    await _preferences!.setString(
+    await preferences.setString(
       _storageKey,
       encoded,
     );
@@ -197,10 +182,9 @@ class WorkoutHistoryStore extends ChangeNotifier {
     );
 
     if (!days.contains(cursor)) {
-      cursor =
-          cursor.subtract(
-            const Duration(days: 1),
-          );
+      cursor = cursor.subtract(
+        const Duration(days: 1),
+      );
     }
 
     var count = 0;
@@ -208,10 +192,9 @@ class WorkoutHistoryStore extends ChangeNotifier {
     while (days.contains(cursor)) {
       count++;
 
-      cursor =
-          cursor.subtract(
-            const Duration(days: 1),
-          );
+      cursor = cursor.subtract(
+        const Duration(days: 1),
+      );
     }
 
     return count;
@@ -229,18 +212,16 @@ class WorkoutHistoryStore extends ChangeNotifier {
         60;
   }
 
-  /// Borra todo el historial.
+  /// Limpia el historial.
   @visibleForTesting
   Future<void> clear() async {
     _results.clear();
 
     if (!_inMemory) {
-      _preferences ??=
+      final preferences =
       await SharedPreferences.getInstance();
 
-      await _preferences!.remove(
-        _storageKey,
-      );
+      await preferences.remove(_storageKey);
     }
 
     notifyListeners();
@@ -265,8 +246,7 @@ Map<String, dynamic> _workoutResultToJson(
           (exercise) => {
         'exerciseId': exercise.exerciseId,
         'value': exercise.value,
-        'feedback':
-        exercise.feedback.name,
+        'feedback': exercise.feedback.name,
       },
     )
         .toList(),
@@ -313,8 +293,7 @@ WorkoutResult _workoutResultFromJson(
       json['completedAt'] as String,
     ),
     elapsedSeconds:
-    (json['elapsedSeconds'] as num)
-        .toInt(),
+    (json['elapsedSeconds'] as num).toInt(),
     feedback:
     _difficultyFromString(
       json['feedback'] as String,

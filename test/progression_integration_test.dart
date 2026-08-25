@@ -11,231 +11,492 @@ import 'package:fitness_ai/features/onboarding/onboarding_state.dart';
 import 'package:fitness_ai/features/workout/workout_generator.dart';
 
 void main() {
-  TestWidgetsFlutterBinding.ensureInitialized();
-
   late WorkoutHistoryStore history;
   late ProgressRepository repository;
   late ProgressionService progressionService;
 
   setUp(() async {
-    history = WorkoutHistoryStore.instance;
+    // IMPORTANTE:
+    // Este almacén NO utiliza SharedPreferences.
+    // Cada test empieza con memoria limpia.
+    history = WorkoutHistoryStore.forTesting();
 
-    await history.clear();
-
-    progressionService = const ProgressionService();
+    progressionService =
+    const ProgressionService();
 
     repository = ProgressRepository(
       history: history,
       progressionService: progressionService,
     );
+
+    await history.clear();
   });
 
   tearDown(() async {
     await history.clear();
   });
 
+  // ----------------------------------------------------------
+  // PROGRESSION ENGINE
+  // ----------------------------------------------------------
+
   group('ProgressionEngine', () {
-    test('veryHard en push_up regresa a incline_push_up', () {
-      final pushUp = exerciseCatalog.firstWhere(
-            (exercise) => exercise.id == 'push_up',
-      );
+    test(
+      'veryHard en push_up regresa a incline_push_up',
+          () {
+        final pushUp =
+        exerciseCatalog.firstWhere(
+              (exercise) =>
+          exercise.id == 'push_up',
+        );
 
-      final result = progressionService.calculateNext(
-        ExerciseResult(
-          exerciseId: pushUp.id,
-          value: 10,
-          feedback: WorkoutDifficulty.veryHard,
-        ),
-      );
+        final result =
+        progressionService.calculateNext(
+          ExerciseResult(
+            exerciseId: pushUp.id,
+            value: 10,
+            feedback:
+            WorkoutDifficulty.veryHard,
+          ),
+        );
 
-      expect(result, isNotNull);
-      expect(result!.action, ProgressionAction.regress);
-      expect(result.exerciseId, 'incline_push_up');
-      expect(result.currentValue, 8);
-    });
+        expect(result, isNotNull);
 
-    test('veryEasy en push_up aumenta repeticiones', () {
-      final result = progressionService.calculateNext(
-        const ExerciseResult(
-          exerciseId: 'push_up',
-          value: 10,
-          feedback: WorkoutDifficulty.veryEasy,
-        ),
-      );
+        expect(
+          result!.action,
+          ProgressionAction.regress,
+        );
 
-      expect(result, isNotNull);
-      expect(result!.action, ProgressionAction.progress);
-      expect(result.exerciseId, 'push_up');
-      expect(result.currentValue, 12);
-    });
+        expect(
+          result.exerciseId,
+          'incline_push_up',
+        );
 
-    test('easy en push_up aumenta una repetición', () {
-      final result = progressionService.calculateNext(
-        const ExerciseResult(
-          exerciseId: 'push_up',
-          value: 10,
-          feedback: WorkoutDifficulty.easy,
-        ),
-      );
+        expect(
+          result.currentValue,
+          8,
+        );
+      },
+    );
 
-      expect(result, isNotNull);
-      expect(result!.action, ProgressionAction.progress);
-      expect(result.exerciseId, 'push_up');
-      expect(result.currentValue, 11);
-    });
+    test(
+      'veryEasy en push_up aumenta repeticiones',
+          () {
+        final result =
+        progressionService.calculateNext(
+          const ExerciseResult(
+            exerciseId: 'push_up',
+            value: 10,
+            feedback:
+            WorkoutDifficulty.veryEasy,
+          ),
+        );
 
-    test('good mantiene la carga', () {
-      final result = progressionService.calculateNext(
-        const ExerciseResult(
-          exerciseId: 'push_up',
-          value: 10,
-          feedback: WorkoutDifficulty.good,
-        ),
-      );
+        expect(result, isNotNull);
 
-      expect(result, isNotNull);
-      expect(result!.action, ProgressionAction.maintain);
-      expect(result.exerciseId, 'push_up');
-      expect(result.currentValue, 10);
-    });
+        expect(
+          result!.action,
+          ProgressionAction.progress,
+        );
+
+        expect(
+          result.exerciseId,
+          'push_up',
+        );
+
+        expect(
+          result.currentValue,
+          12,
+        );
+      },
+    );
+
+    test(
+      'easy en push_up aumenta una repetición',
+          () {
+        final result =
+        progressionService.calculateNext(
+          const ExerciseResult(
+            exerciseId: 'push_up',
+            value: 10,
+            feedback:
+            WorkoutDifficulty.easy,
+          ),
+        );
+
+        expect(result, isNotNull);
+
+        expect(
+          result!.action,
+          ProgressionAction.progress,
+        );
+
+        expect(
+          result.exerciseId,
+          'push_up',
+        );
+
+        expect(
+          result.currentValue,
+          11,
+        );
+      },
+    );
+
+    test(
+      'good mantiene la carga',
+          () {
+        final result =
+        progressionService.calculateNext(
+          const ExerciseResult(
+            exerciseId: 'push_up',
+            value: 10,
+            feedback:
+            WorkoutDifficulty.good,
+          ),
+        );
+
+        expect(result, isNotNull);
+
+        expect(
+          result!.action,
+          ProgressionAction.maintain,
+        );
+
+        expect(
+          result.exerciseId,
+          'push_up',
+        );
+
+        expect(
+          result.currentValue,
+          10,
+        );
+      },
+    );
   });
+
+  // ----------------------------------------------------------
+  // PROGRESS REPOSITORY
+  // ----------------------------------------------------------
 
   group('ProgressRepository', () {
-    test('guarda una sesión y recupera su progreso', () async {
-      await repository.saveWorkout(
-        WorkoutResult(
-          workoutTitle: 'Test',
-          completedAt: DateTime.now(),
-          elapsedSeconds: 600,
-          feedback: WorkoutDifficulty.veryHard,
-          exercises: const [
-            ExerciseResult(
-              exerciseId: 'push_up',
-              value: 10,
-              feedback: WorkoutDifficulty.veryHard,
-            ),
-          ],
-        ),
-      );
+    test(
+      'guarda una sesión y recupera su progreso',
+          () async {
+        await repository.saveWorkout(
+          WorkoutResult(
+            workoutTitle: 'Test',
+            completedAt: DateTime.now(),
+            elapsedSeconds: 600,
+            feedback:
+            WorkoutDifficulty.veryHard,
+            exercises: const [
+              ExerciseResult(
+                exerciseId: 'push_up',
+                value: 10,
+                feedback:
+                WorkoutDifficulty.veryHard,
+              ),
+            ],
+          ),
+        );
 
-      expect(repository.completedWorkoutCount(), 1);
+        expect(
+          repository.completedWorkoutCount(),
+          1,
+        );
 
-      final progress = repository.getExerciseProgress('push_up');
+        final progress =
+        repository.getExerciseProgress(
+          'push_up',
+        );
 
-      expect(progress, isNotNull);
-      expect(progress!.exerciseId, 'incline_push_up');
-      expect(progress.currentValue, 8);
-      expect(progress.action, ProgressionAction.regress);
-    });
+        expect(progress, isNotNull);
 
-    test('veryEasy conserva el ejercicio pero aumenta la carga', () async {
-      await repository.saveWorkout(
-        WorkoutResult(
-          workoutTitle: 'Test',
-          completedAt: DateTime.now(),
-          elapsedSeconds: 600,
-          feedback: WorkoutDifficulty.veryEasy,
-          exercises: const [
-            ExerciseResult(
-              exerciseId: 'push_up',
-              value: 10,
-              feedback: WorkoutDifficulty.veryEasy,
-            ),
-          ],
-        ),
-      );
+        expect(
+          progress!.exerciseId,
+          'incline_push_up',
+        );
 
-      final progress = repository.getExerciseProgress('push_up');
+        expect(
+          progress.currentValue,
+          8,
+        );
 
-      expect(progress, isNotNull);
-      expect(progress!.exerciseId, 'push_up');
-      expect(progress.currentValue, 12);
-      expect(progress.action, ProgressionAction.progress);
-    });
+        expect(
+          progress.action,
+          ProgressionAction.regress,
+        );
+      },
+    );
 
-    test('solo una sesión genera una sola entrada de historial', () async {
-      await repository.saveWorkout(
-        WorkoutResult(
-          workoutTitle: 'Test',
-          completedAt: DateTime.now(),
-          elapsedSeconds: 600,
-          feedback: WorkoutDifficulty.good,
-          exercises: const [
-            ExerciseResult(
-              exerciseId: 'push_up',
-              value: 10,
-              feedback: WorkoutDifficulty.good,
-            ),
-          ],
-        ),
-      );
+    test(
+      'veryEasy conserva el ejercicio pero aumenta la carga',
+          () async {
+        await repository.saveWorkout(
+          WorkoutResult(
+            workoutTitle: 'Test',
+            completedAt: DateTime.now(),
+            elapsedSeconds: 600,
+            feedback:
+            WorkoutDifficulty.veryEasy,
+            exercises: const [
+              ExerciseResult(
+                exerciseId: 'push_up',
+                value: 10,
+                feedback:
+                WorkoutDifficulty.veryEasy,
+              ),
+            ],
+          ),
+        );
 
-      expect(repository.completedWorkoutCount(), 1);
-      expect(history.sessionCount, 1);
-    });
+        final progress =
+        repository.getExerciseProgress(
+          'push_up',
+        );
+
+        expect(progress, isNotNull);
+
+        expect(
+          progress!.exerciseId,
+          'push_up',
+        );
+
+        expect(
+          progress.currentValue,
+          12,
+        );
+
+        expect(
+          progress.action,
+          ProgressionAction.progress,
+        );
+      },
+    );
+
+    test(
+      'solo una sesión genera una sola entrada de historial',
+          () async {
+        await repository.saveWorkout(
+          WorkoutResult(
+            workoutTitle: 'Test',
+            completedAt: DateTime.now(),
+            elapsedSeconds: 600,
+            feedback:
+            WorkoutDifficulty.good,
+            exercises: const [
+              ExerciseResult(
+                exerciseId: 'push_up',
+                value: 10,
+                feedback:
+                WorkoutDifficulty.good,
+              ),
+            ],
+          ),
+        );
+
+        expect(
+          repository.completedWorkoutCount(),
+          1,
+        );
+
+        expect(
+          history.sessionCount,
+          1,
+        );
+      },
+    );
   });
 
+  // ----------------------------------------------------------
+  // WORKOUT GENERATOR
+  // ----------------------------------------------------------
+
   group('WorkoutGenerator', () {
-    test('el generador recibe correctamente el repositorio de progreso', () {
-      final profile = _createProfile();
+    test(
+      'el generador recibe correctamente el repositorio de progreso',
+          () {
+        final profile =
+        _createProfile();
 
-      final workout = const WorkoutGenerator().generate(
-        profile,
-        progress: repository,
-      );
+        final workout =
+        const WorkoutGenerator().generate(
+          profile,
+          progress: repository,
+        );
 
-      expect(workout.blocks, isNotEmpty);
-      expect(workout.steps, isNotEmpty);
-    });
+        expect(
+          workout.blocks,
+          isNotEmpty,
+        );
 
-    test('el entrenamiento contiene calentamiento y vuelta a la calma', () {
-      final profile = _createProfile();
+        expect(
+          workout.steps,
+          isNotEmpty,
+        );
+      },
+    );
 
-      final workout = const WorkoutGenerator().generate(
-        profile,
-        progress: repository,
-      );
+    test(
+      'el entrenamiento contiene calentamiento y vuelta a la calma',
+          () {
+        final profile =
+        _createProfile();
 
-      expect(
-        workout.blocks.any(
-              (block) => block.type == WorkoutBlockType.warmup,
-        ),
-        isTrue,
-      );
+        final workout =
+        const WorkoutGenerator().generate(
+          profile,
+          progress: repository,
+        );
 
-      expect(
-        workout.blocks.any(
-              (block) => block.type == WorkoutBlockType.cooldown,
-        ),
-        isTrue,
-      );
-    });
+        expect(
+          workout.blocks.any(
+                (block) =>
+            block.type ==
+                WorkoutBlockType.warmup,
+          ),
+          isTrue,
+        );
+
+        expect(
+          workout.blocks.any(
+                (block) =>
+            block.type ==
+                WorkoutBlockType.cooldown,
+          ),
+          isTrue,
+        );
+      },
+    );
 
     test(
       'una sesión muy difícil de push_up registra correctamente la regresión',
           () async {
         await repository.saveWorkout(
           WorkoutResult(
-            workoutTitle: 'Entrenamiento anterior',
+            workoutTitle:
+            'Entrenamiento anterior',
             completedAt: DateTime.now(),
             elapsedSeconds: 600,
-            feedback: WorkoutDifficulty.veryHard,
+            feedback:
+            WorkoutDifficulty.veryHard,
             exercises: const [
               ExerciseResult(
                 exerciseId: 'push_up',
                 value: 10,
-                feedback: WorkoutDifficulty.veryHard,
+                feedback:
+                WorkoutDifficulty.veryHard,
               ),
             ],
           ),
         );
 
-        final progress = repository.getExerciseProgress('push_up');
+        final progress =
+        repository.getExerciseProgress(
+          'push_up',
+        );
 
         expect(progress, isNotNull);
-        expect(progress!.action, ProgressionAction.regress);
-        expect(progress.exerciseId, 'incline_push_up');
-        expect(progress.currentValue, 8);
+
+        expect(
+          progress!.action,
+          ProgressionAction.regress,
+        );
+
+        expect(
+          progress.exerciseId,
+          'incline_push_up',
+        );
+
+        expect(
+          progress.currentValue,
+          8,
+        );
+      },
+    );
+  });
+
+  // ----------------------------------------------------------
+  // HISTORIAL
+  // ----------------------------------------------------------
+
+  group('WorkoutHistoryStore', () {
+    test(
+      'almacén de test funciona sin SharedPreferences',
+          () async {
+        final testHistory =
+        WorkoutHistoryStore.forTesting();
+
+        expect(
+          testHistory.sessionCount,
+          0,
+        );
+
+        await testHistory.add(
+          WorkoutResult(
+            workoutTitle: 'Test',
+            completedAt: DateTime.now(),
+            elapsedSeconds: 300,
+            feedback:
+            WorkoutDifficulty.good,
+            exercises: const [
+              ExerciseResult(
+                exerciseId: 'push_up',
+                value: 10,
+                feedback:
+                WorkoutDifficulty.good,
+              ),
+            ],
+          ),
+        );
+
+        expect(
+          testHistory.sessionCount,
+          1,
+        );
+
+        expect(
+          testHistory.latest,
+          isNotNull,
+        );
+
+        await testHistory.clear();
+
+        expect(
+          testHistory.sessionCount,
+          0,
+        );
+      },
+    );
+
+    test(
+      'dos sesiones generan exactamente dos entradas',
+          () async {
+        await repository.saveWorkout(
+          _createResult(
+            'Sesión 1',
+            WorkoutDifficulty.good,
+          ),
+        );
+
+        await repository.saveWorkout(
+          _createResult(
+            'Sesión 2',
+            WorkoutDifficulty.easy,
+          ),
+        );
+
+        expect(
+          history.sessionCount,
+          2,
+        );
+
+        expect(
+          repository.completedWorkoutCount(),
+          2,
+        );
       },
     );
   });
@@ -247,5 +508,24 @@ OnboardingState _createProfile() {
     duration: WorkoutDuration.twenty,
     equipment: <Equipment>{},
     goals: <String>{},
+  );
+}
+
+WorkoutResult _createResult(
+    String title,
+    WorkoutDifficulty difficulty,
+    ) {
+  return WorkoutResult(
+    workoutTitle: title,
+    completedAt: DateTime.now(),
+    elapsedSeconds: 600,
+    feedback: difficulty,
+    exercises: const [
+      ExerciseResult(
+        exerciseId: 'push_up',
+        value: 10,
+        feedback: WorkoutDifficulty.good,
+      ),
+    ],
   );
 }
