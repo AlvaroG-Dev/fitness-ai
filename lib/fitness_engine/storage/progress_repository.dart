@@ -1,3 +1,5 @@
+import '../data/exercise_catalog.dart';
+import '../models/exercise.dart';
 import '../models/workout_result.dart';
 import '../progression/progression_service.dart';
 import 'workout_history.dart';
@@ -10,42 +12,75 @@ class ProgressRepository {
   ProgressRepository({
     WorkoutHistoryStore? history,
     ProgressionService? progressionService,
-  })  : history =
-      history ?? WorkoutHistoryStore.instance,
-        progressionService =
-            progressionService ??
-                const ProgressionService();
+  })  : history = history ?? WorkoutHistoryStore.instance,
+        progressionService = progressionService ?? const ProgressionService();
 
   final WorkoutHistoryStore history;
   final ProgressionService progressionService;
 
-  Future<void> saveWorkout(
-      WorkoutResult result,
-      ) async {
+  Future<void> saveWorkout(WorkoutResult result) async {
     await history.add(result);
   }
 
-  List<WorkoutResult> get workoutHistory =>
-      history.all;
+  List<WorkoutResult> get workoutHistory => history.all;
 
-  WorkoutResult? get lastWorkout =>
-      history.latest;
+  WorkoutResult? get lastWorkout => history.latest;
 
-  ExerciseProgress? getExerciseProgress(
-      String exerciseId,
-      ) {
-    final result =
-    history.latestResultForExercise(
-      exerciseId,
-    );
+  /// Devuelve la carga recomendada para [exerciseId].
+  ///
+  /// Primero busca el ejercicio exacto. Si todavía no tiene historial,
+  /// busca una variante relacionada dentro de la misma cadena de
+  /// progresión/regresión. Esto permite que el motor conserve la
+  /// adaptación aunque el generador cambie de variante entre sesiones.
+  ExerciseProgress? getExerciseProgress(String exerciseId) {
+    final requested = _findExercise(exerciseId);
+    if (requested == null) return null;
 
-    if (result == null) {
-      return null;
+    final candidateIds = _relatedExerciseIds(requested);
+
+    for (final workout in history.all) {
+      for (final result in workout.exercises) {
+        if (!candidateIds.contains(result.exerciseId)) continue;
+
+        final next = progressionService.calculateNext(result);
+        if (next != null) return next;
+      }
     }
 
-    return progressionService.calculateNext(
-      result,
-    );
+    return null;
+  }
+
+  List<String> _relatedExerciseIds(Exercise requested) {
+    final ids = <String>{requested.id};
+    final queue = <String>[requested.id];
+
+    while (queue.isNotEmpty) {
+      final currentId = queue.removeAt(0);
+      final current = _findExercise(currentId);
+      if (current == null) continue;
+
+      final neighbours = [current.progressionId, current.regressionId];
+
+      for (final id in neighbours) {
+        if (id == null || ids.contains(id)) continue;
+
+        final exercise = _findExercise(id);
+        if (exercise == null || exercise.role != ExerciseRole.main) continue;
+        if (exercise.pattern != requested.pattern) continue;
+
+        ids.add(id);
+        queue.add(id);
+      }
+    }
+
+    return ids.toList(growable: false);
+  }
+
+  Exercise? _findExercise(String id) {
+    for (final exercise in exerciseCatalog) {
+      if (exercise.id == id) return exercise;
+    }
+    return null;
   }
 
   int completedWorkoutCount() {
@@ -62,8 +97,7 @@ class ProgressRepository {
     return total;
   }
 
-  double? get hoursSinceLastSession =>
-      history.hoursSinceLastSession;
+  double? get hoursSinceLastSession => history.hoursSinceLastSession;
 
   int get streak => history.streak;
 }
